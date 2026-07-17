@@ -1,0 +1,19 @@
+{
+  "name": "poker-night-server",
+  "version": "1.0.0",
+  "description": "Poker Night - Bar Texas Holdem Server",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4",
+    "better-sqlite3": "^11.0.0",
+    "uuid": "^9.0.0",
+    "cors": "^2.8.5",
+    "nodemailer": "^6.9.8",
+    "dotenv": "^16.4.1"
+  }
+}
