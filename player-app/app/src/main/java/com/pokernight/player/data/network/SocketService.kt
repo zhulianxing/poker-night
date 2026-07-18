@@ -122,8 +122,15 @@ class SocketService(
                 val mySeat = findMySeat(seats)
                 currentState = currentState.copy(
                     phase = phase,
+                    tableCode = displayCode,
                     sb = sb,
                     bb = bb,
+                    pot = data.optInt("pot", 0),
+                    currentBet = data.optInt("currentBet", 0),
+                    blindLevel = data.optInt("blindLevel", 1),
+                    handNumber = data.optInt("handNumber", 0),
+                    actingIndex = data.optInt("actingIndex", -1),
+                    dealerIndex = data.optInt("dealerIndex", 0),
                     seats = if (seats.isNotEmpty()) seats else currentState.seats,
                     mySeatIndex = mySeat?.seatIndex ?: currentState.mySeatIndex,
                     myChips = mySeat?.chipCount ?: currentState.myChips,
@@ -151,7 +158,16 @@ class SocketService(
 
         s.on(EVT_TOURNAMENT_STARTED) { args ->
             val data = if (args.isNotEmpty() && args[0] is JSONObject) args[0] as JSONObject else JSONObject()
-            currentState = currentState.copy(phase = "tournament_started")
+            val tid = data.optString("tournamentId", "")
+            val seats = parseSeats(data.optJSONArray("seats"))
+            val mySeat = findMySeat(seats)
+            currentState = currentState.copy(
+                phase = "tournament_started",
+                tournamentId = tid,
+                seats = seats,
+                mySeatIndex = mySeat?.seatIndex ?: currentState.mySeatIndex,
+                myChips = mySeat?.chipCount ?: currentState.myChips,
+            )
             onEvent(EVT_TOURNAMENT_STARTED, data)
             onStateUpdate(currentState)
         }
