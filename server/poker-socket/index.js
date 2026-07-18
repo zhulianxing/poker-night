@@ -393,6 +393,7 @@ async function startTournament(tournamentId) {
       chipCount: p.chip_count,
       status: p.status,
       nickname: p.nickname,
+      isBot: p.nickname?.startsWith('Bot') || p.nickname?.startsWith('AutoBot') || false,
     }));
 
     // 创建 SNG 管理器

@@ -413,9 +413,31 @@ class SNGManager {
     if (!player) return;
 
     this.actionTimer = setTimeout(() => {
-      // 超时自动弃牌
-      console.log(`[SNG] Player ${player.id} timed out, auto-fold`);
-      this.handleAction(player.id, ACTIONS.FOLD);
+      // Bot auto-action: simple strategy
+      if (player.isBot) {
+        const hand = this.currentHand;
+        if (!hand) return;
+        const toCall = hand.currentBet - (this.getSeatCurrentBet(seatIndex) || 0);
+        
+        // Simple bot strategy: 
+        // - If can check (toCall === 0): check
+        // - If can afford call and pot odds reasonable: call (70%)
+        // - Otherwise: fold
+        if (toCall === 0) {
+          console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} auto-check`);
+          this.handleAction(player.id, ACTIONS.CHECK);
+        } else if (player.chipCount >= toCall && Math.random() < 0.7) {
+          console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} auto-call ${toCall}`);
+          this.handleAction(player.id, ACTIONS.CALL, toCall);
+        } else {
+          console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} auto-fold`);
+          this.handleAction(player.id, ACTIONS.FOLD);
+        }
+      } else {
+        // Real player timeout: auto-fold
+        console.log(`[SNG] Player ${player.id} timed out, auto-fold`);
+        this.handleAction(player.id, ACTIONS.FOLD);
+      }
     }, this.actionTimeout);
 
     this.emit('action_timer_started', {
@@ -423,6 +445,15 @@ class SNGManager {
       playerId: player.id,
       timeoutMs: this.actionTimeout,
     });
+  }
+
+  getSeatCurrentBet(seatIndex) {
+    if (!this.currentHand || !this.currentHand.actions) return 0;
+    const player = this.players.find(p => p.seatIndex === seatIndex);
+    if (!player) return 0;
+    return this.currentHand.actions
+      .filter(a => a.playerId === player.id)
+      .reduce((sum, a) => sum + (a.amount || 0), 0);
   }
 
   /**
