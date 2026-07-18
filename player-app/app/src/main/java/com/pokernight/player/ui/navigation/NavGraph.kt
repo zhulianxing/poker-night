@@ -10,8 +10,11 @@ import androidx.navigation.navArgument
 import com.pokernight.player.data.GameViewModel
 import com.pokernight.player.ui.screens.LoginScreen
 import com.pokernight.player.ui.screens.RegisterScreen
+import com.pokernight.player.ui.screens.ScanningScreen
 import com.pokernight.player.ui.screens.SplashScreen
 import com.pokernight.player.ui.screens.TableGameScreen
+import com.pokernight.player.ui.screens.TableJoinScreen
+import com.pokernight.player.ui.screens.TableLobbyScreen
 import com.pokernight.player.ui.screens.TableListScreen
 
 object Routes {
@@ -19,9 +22,14 @@ object Routes {
     const val LOGIN = "login"
     const val REGISTER = "register"
     const val TABLE_LIST = "table_list"
+    const val SCANNING = "scanning"
     const val TABLE_GAME = "table_game/{tableCode}"
+    const val TABLE_JOIN = "table_join/{tableCode}"
+    const val TABLE_LOBBY = "table_lobby/{tournamentId}"
 
     fun tableGame(code: String) = "table_game/$code"
+    fun tableJoin(code: String) = "table_join/$code"
+    fun tableLobby(tournamentId: String) = "table_lobby/$tournamentId"
 }
 
 @Composable
@@ -77,12 +85,66 @@ fun PokerNavGraph(
             TableListScreen(
                 viewModel = viewModel,
                 onTableClick = { code ->
-                    navController.navigate(Routes.tableGame(code))
+                    navController.navigate(Routes.tableJoin(code))
+                },
+                onScanClick = {
+                    navController.navigate(Routes.SCANNING)
                 },
                 onLogout = {
                     viewModel.logout()
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.TABLE_LIST) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(Routes.SCANNING) {
+            ScanningScreen(
+                onScanResult = { tableCode ->
+                    navController.navigate(Routes.tableJoin(tableCode)) {
+                        popUpTo(Routes.SCANNING) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.TABLE_JOIN,
+            arguments = listOf(navArgument("tableCode") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val tableCode = backStackEntry.arguments?.getString("tableCode") ?: ""
+            TableJoinScreen(
+                viewModel = viewModel,
+                tableCode = tableCode,
+                onJoinSuccess = { tournamentId ->
+                    navController.navigate(Routes.tableLobby(tournamentId)) {
+                        popUpTo(Routes.TABLE_JOIN) { inclusive = true }
+                    }
+                },
+                onBack = {
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route = Routes.TABLE_LOBBY,
+            arguments = listOf(navArgument("tournamentId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val tournamentId = backStackEntry.arguments?.getString("tournamentId") ?: ""
+            TableLobbyScreen(
+                viewModel = viewModel,
+                tournamentId = tournamentId,
+                onTournamentStart = { tableCode ->
+                    navController.navigate(Routes.tableGame(tableCode)) {
+                        popUpTo(Routes.TABLE_LOBBY) { inclusive = true }
+                    }
+                },
+                onLeave = {
+                    navController.navigate(Routes.TABLE_LIST) {
+                        popUpTo(Routes.TABLE_LOBBY) { inclusive = true }
                     }
                 },
             )

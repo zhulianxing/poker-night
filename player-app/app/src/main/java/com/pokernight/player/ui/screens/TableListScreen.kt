@@ -11,14 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -45,10 +41,10 @@ import com.pokernight.player.ui.theme.White
 fun TableListScreen(
     viewModel: GameViewModel,
     onTableClick: (String) -> Unit,
+    onScanClick: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val tableStatus by viewModel.tableStatus.collectAsState()
     var tableCode by remember { mutableStateOf("") }
 
     Box(
@@ -87,15 +83,47 @@ fun TableListScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Enter table code
-            Text(
-                text = "输入桌号入座",
-                fontSize = 16.sp,
-                color = Gold,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(Modifier.height(8.dp))
+            // Scan button
+            Button(
+                onClick = onScanClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Gold,
+                    contentColor = BgDark,
+                ),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text("📱 扫码入座", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
 
+            Spacer(Modifier.height(24.dp))
+
+            // Divider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.Divider(
+                    modifier = Modifier.weight(1f),
+                    color = White.copy(alpha = 0.2f),
+                )
+                Text(
+                    text = "或手动输入桌号",
+                    color = White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+                androidx.compose.material3.Divider(
+                    modifier = Modifier.weight(1f),
+                    color = White.copy(alpha = 0.2f),
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Enter table code
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -120,7 +148,6 @@ fun TableListScreen(
                 Button(
                     onClick = {
                         if (tableCode.isNotBlank()) {
-                            viewModel.fetchTableStatus(tableCode)
                             onTableClick(tableCode)
                         }
                     },
@@ -132,50 +159,6 @@ fun TableListScreen(
                     modifier = Modifier.height(56.dp),
                 ) {
                     Text("入座", fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Table status info
-            tableStatus?.let { status ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = androidx.compose.ui.graphics.Color(0xFF16213E),
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "牌桌: ${status.table.label} (${status.table.code})",
-                            color = Gold,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text("场地: ${status.table.venueName}", color = White, fontSize = 14.sp)
-                        Text("报名费: ${status.table.launchFee}", color = White, fontSize = 14.sp)
-                        Text("最大人数: ${status.table.maxPlayers}", color = White, fontSize = 14.sp)
-                        Text("状态: ${status.table.status}", color = White, fontSize = 14.sp)
-
-                        status.tournament?.let { t ->
-                            Spacer(Modifier.height(8.dp))
-                            Text("赛事: ${t.displayCode}", color = Gold, fontSize = 14.sp)
-                            Text("人数: ${t.playerCount}/${t.maxPlayers}", color = White, fontSize = 14.sp)
-                            Text("赛事状态: ${t.status}", color = White, fontSize = 14.sp)
-
-                            Spacer(Modifier.height(8.dp))
-                            Text("已入座玩家:", color = Gold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            status.players.forEach { p ->
-                                Text(
-                                    "  ${p.avatar} ${p.nickname} — 座位${p.seatIndex} — ${p.chipCount}筹码 — ${p.status}",
-                                    color = White,
-                                    fontSize = 13.sp,
-                                )
-                            }
-                        }
-                    }
                 }
             }
 

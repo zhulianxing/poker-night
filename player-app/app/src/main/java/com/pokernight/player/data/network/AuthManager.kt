@@ -8,7 +8,7 @@ object AuthManager {
     private const val KEY_TOKEN = "jwt_token"
     private const val KEY_PLAYER_ID = "player_id"
     private const val KEY_NICKNAME = "nickname"
-    private const val KEY_PHONE = "phone"
+    private const val KEY_EMAIL = "email"
     private const val KEY_AVATAR = "avatar"
 
     private lateinit var prefs: SharedPreferences
@@ -23,17 +23,18 @@ object AuthManager {
 
     fun getToken(): String? = prefs.getString(KEY_TOKEN, null)
 
-    fun savePlayer(id: String, nickname: String, phone: String, avatar: String) {
+    fun savePlayer(id: String, nickname: String, email: String, avatar: String) {
         prefs.edit()
             .putString(KEY_PLAYER_ID, id)
             .putString(KEY_NICKNAME, nickname)
-            .putString(KEY_PHONE, phone)
+            .putString(KEY_EMAIL, email)
             .putString(KEY_AVATAR, avatar)
             .apply()
     }
 
     fun getPlayerId(): String? = prefs.getString(KEY_PLAYER_ID, null)
     fun getNickname(): String? = prefs.getString(KEY_NICKNAME, null)
+    fun getEmail(): String? = prefs.getString(KEY_EMAIL, null)
     fun getAvatar(): String? = prefs.getString(KEY_AVATAR, "🃏")
 
     fun isLoggedIn(): Boolean = getToken() != null

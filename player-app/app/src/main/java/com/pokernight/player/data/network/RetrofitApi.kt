@@ -1,8 +1,12 @@
 package com.pokernight.player.data.network
 
-import com.pokernight.player.data.model.AuthRequest
 import com.pokernight.player.data.model.AuthResponse
 import com.pokernight.player.data.model.GameHistory
+import com.pokernight.player.data.model.JoinResponse
+import com.pokernight.player.data.model.LoginRequest
+import com.pokernight.player.data.model.RegisterRequest
+import com.pokernight.player.data.model.SendCodeRequest
+import com.pokernight.player.data.model.SendCodeResponse
 import com.pokernight.player.data.model.TableInfo
 import com.pokernight.player.data.model.TableStatus
 import retrofit2.http.Body
@@ -13,11 +17,14 @@ import retrofit2.http.Path
 
 interface RetrofitApi {
 
-    @POST("api/v1/auth/register")
-    suspend fun register(@Body req: AuthRequest): AuthResponse
+    @POST("api/v1/auth/send-code")
+    suspend fun sendCode(@Body req: SendCodeRequest): SendCodeResponse
 
     @POST("api/v1/auth/login")
-    suspend fun login(@Body req: AuthRequest): AuthResponse
+    suspend fun login(@Body req: LoginRequest): AuthResponse
+
+    @POST("api/v1/auth/register")
+    suspend fun register(@Body req: RegisterRequest): AuthResponse
 
     @GET("api/v1/tables/{code}")
     suspend fun getTable(@Path("code") code: String): TableInfo
@@ -27,6 +34,12 @@ interface RetrofitApi {
 
     @POST("api/v1/tournaments/{id}/join")
     suspend fun joinTournament(
+        @Path("id") id: String,
+        @Header("Authorization") token: String,
+    ): JoinResponse
+
+    @POST("api/v1/tournaments/{id}/leave")
+    suspend fun leaveTournament(
         @Path("id") id: String,
         @Header("Authorization") token: String,
     )

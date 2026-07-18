@@ -3,8 +3,34 @@ package com.pokernight.player.data.model
 data class Player(
     val id: String,
     val nickname: String,
-    val phone: String,
+    val email: String,
     val avatar: String = "🃏",
+)
+
+data class SendCodeRequest(
+    val email: String,
+    val purpose: String, // "login" | "register"
+)
+
+data class SendCodeResponse(
+    val success: Boolean,
+    val message: String? = null,
+)
+
+data class LoginRequest(
+    val email: String,
+    val code: String,
+)
+
+data class RegisterRequest(
+    val email: String,
+    val code: String,
+    val nickname: String,
+)
+
+data class AuthResponse(
+    val player: Player,
+    val token: String,
 )
 
 data class TableInfo(
@@ -30,6 +56,9 @@ data class Tournament(
     val playerCount: Int,
     val maxPlayers: Int,
     val launchFee: Int,
+    val startChips: Int = 1000,
+    val sb: Int = 10,
+    val bb: Int = 20,
 )
 
 data class TournamentPlayer(
@@ -40,6 +69,12 @@ data class TournamentPlayer(
     val status: String,
     val nickname: String,
     val avatar: String,
+)
+
+data class JoinResponse(
+    val seatIndex: Int,
+    val tournamentId: String,
+    val startChips: Int,
 )
 
 data class Card(
@@ -79,17 +114,6 @@ data class SeatInfo(
     val isDealer: Boolean = false,
     val isActing: Boolean = false,
     val lastAction: String = "",
-)
-
-data class AuthResponse(
-    val player: Player,
-    val token: String,
-)
-
-data class AuthRequest(
-    val phone: String,
-    val password: String,
-    val nickname: String? = null,
 )
 
 data class GameHistory(

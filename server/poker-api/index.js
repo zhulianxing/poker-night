@@ -4,9 +4,9 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { db, query } = require('@poker-night/shared');
+const { db, query, mailer } = require('@poker-night/shared');
 const { TOURNAMENT_STATUS, PLAYER_STATUS, ACTIONS, SNG_DEFAULTS } = require('@poker-night/shared');
+const { sendCode } = mailer;
 
 const app = express();
 const PORT = process.env.POKER_API_PORT || 3010;
@@ -35,47 +35,132 @@ function auth(req, res, next) {
 app.get('/health', (req, res) => res.json({ ok: true, service: 'poker-api' }));
 
 // ============================================================
-// 认证
+// 认证（邮箱 + 验证码）
 // ============================================================
 
-// 注册（手机号 + 密码，MVP 不做短信验证码）
-app.post('/api/v1/auth/register', async (req, res) => {
-  const { phone, nickname, password } = req.body;
-  if (!phone || !nickname || !password) {
-    return res.status(400).json({ error: 'missing fields' });
-  }
+// 发送验证码
+app.post('/api/v1/auth/send-code', async (req, res) => {
+  const { email, purpose } = req.body;
+  if (!email || !purpose) return res.status(400).json({ error: 'missing fields' });
+  if (!['login', 'register'].includes(purpose)) return res.status(400).json({ error: 'invalid purpose' });
+
+  // 基本邮箱格式校验
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return res.status(400).json({ error: 'invalid email format' });
+
   try {
-    const hash = bcrypt.hashSync(password, 10);
+    // 注册：检查邮箱是否已注册
+    if (purpose === 'register') {
+      const exist = await query('SELECT id FROM players WHERE email = $1', [email]);
+      if (exist.rows.length > 0) return res.status(409).json({ error: 'email already registered' });
+    }
+
+    // 登录：检查邮箱是否存在
+    if (purpose === 'login') {
+      const exist = await query('SELECT id FROM players WHERE email = $1', [email]);
+      if (exist.rows.length === 0) return res.status(404).json({ error: 'email not found' });
+    }
+
+    // 防暴力：同一邮箱60秒内只能发一次
+    const recent = await query(
+      `SELECT created_at FROM email_codes WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
+      [email]
+    );
+    if (recent.rows.length > 0) {
+      const elapsed = Date.now() - new Date(recent.rows[0].created_at).getTime();
+      if (elapsed < 60000) {
+        const waitSec = Math.ceil((60000 - elapsed) / 1000);
+        return res.status(429).json({ error: `too many requests, try again in ${waitSec}s` });
+      }
+    }
+
+    // 生成6位验证码
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+
+    // 存入数据库
+    await query(
+      'INSERT INTO email_codes (email, code, purpose) VALUES ($1, $2, $3)',
+      [email, code, purpose]
+    );
+
+    // 发送邮件（开发模式下输出到控制台）
+    await sendCode(email, code, purpose);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Auth] send-code error:', err);
+    res.status(500).json({ error: 'failed to send code' });
+  }
+});
+
+// 注册（邮箱 + 验证码 + 昵称）
+app.post('/api/v1/auth/register', async (req, res) => {
+  const { email, code, nickname } = req.body;
+  if (!email || !code || !nickname) return res.status(400).json({ error: 'missing fields' });
+  if (nickname.length > 30) return res.status(400).json({ error: 'nickname too long' });
+
+  try {
+    // 验证码校验
+    const codeResult = await query(
+      `SELECT * FROM email_codes 
+       WHERE email = $1 AND code = $2 AND purpose = 'register' 
+         AND used = FALSE AND expires_at > NOW() 
+       ORDER BY created_at DESC LIMIT 1`,
+      [email, code]
+    );
+    if (codeResult.rows.length === 0) return res.status(400).json({ error: 'invalid or expired code' });
+
+    // 再次检查邮箱是否已注册（防止并发）
+    const exist = await query('SELECT id FROM players WHERE email = $1', [email]);
+    if (exist.rows.length > 0) return res.status(409).json({ error: 'email already registered' });
+
+    // 创建玩家
     const result = await query(
-      'INSERT INTO players (nickname, phone, password_hash) VALUES ($1, $2, $3) RETURNING id, nickname, phone, avatar',
-      [nickname, phone, hash]
+      'INSERT INTO players (nickname, email, avatar) VALUES ($1, $2, $3) RETURNING id, nickname, email, avatar',
+      [nickname, email, '🃏']
     );
     const player = result.rows[0];
+
+    // 标记验证码已使用
+    await query('UPDATE email_codes SET used = TRUE WHERE id = $1', [codeResult.rows[0].id]);
+
     const token = jwt.sign({ id: player.id, nickname: player.nickname }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ player, token });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'phone already registered' });
+    if (err.code === '23505') return res.status(409).json({ error: 'email already registered' });
+    console.error('[Auth] register error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 登录
+// 登录（邮箱 + 验证码）
 app.post('/api/v1/auth/login', async (req, res) => {
-  const { phone, password } = req.body;
-  if (!phone || !password) return res.status(400).json({ error: 'missing fields' });
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ error: 'missing fields' });
+
   try {
-    const result = await query('SELECT * FROM players WHERE phone = $1', [phone]);
+    // 验证码校验
+    const codeResult = await query(
+      `SELECT * FROM email_codes 
+       WHERE email = $1 AND code = $2 AND purpose = 'login' 
+         AND used = FALSE AND expires_at > NOW() 
+       ORDER BY created_at DESC LIMIT 1`,
+      [email, code]
+    );
+    if (codeResult.rows.length === 0) return res.status(400).json({ error: 'invalid or expired code' });
+
+    // 获取玩家
+    const result = await query('SELECT id, nickname, email, avatar FROM players WHERE email = $1', [email]);
     const player = result.rows[0];
     if (!player) return res.status(404).json({ error: 'player not found' });
-    if (!bcrypt.compareSync(password, player.password_hash)) {
-      return res.status(401).json({ error: 'wrong password' });
-    }
+
+    // 标记验证码已使用
+    await query('UPDATE email_codes SET used = TRUE WHERE id = $1', [codeResult.rows[0].id]);
+
     const token = jwt.sign({ id: player.id, nickname: player.nickname }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({
-      player: { id: player.id, nickname: player.nickname, phone: player.phone, avatar: player.avatar },
-      token,
-    });
+    res.json({ player, token });
   } catch (err) {
+    console.error('[Auth] login error:', err);
     res.status(500).json({ error: err.message });
   }
 });
