@@ -34,9 +34,15 @@ class SocketService(
     }
 
     fun connect(token: String?) {
-        if (socket?.connected() == true) return
+        Log.i(TAG, "connect() called, token=${if (token != null) token.take(20) + "..." else "null"}")
+        if (socket?.connected() == true) {
+            Log.i(TAG, "Socket already connected, skipping")
+            return
+        }
+        Log.i(TAG, "Creating socket...")
         socket = NetworkProvider.createSocket(token)
         registerListeners()
+        Log.i(TAG, "Connecting socket...")
         socket?.connect()
     }
 
@@ -47,7 +53,10 @@ class SocketService(
         currentState = GameState()
     }
 
+    fun isConnected(): Boolean = socket?.connected() == true
+
     fun joinTable(tableCode: String) {
+        Log.i(TAG, "joinTable($tableCode) called, socket=${if (socket?.connected() == true) "connected" else "NOT connected"}")
         val data = JSONObject().apply { put("tableCode", tableCode) }
         socket?.emit("join_table", data)
         currentState = currentState.copy(tableCode = tableCode)
@@ -90,7 +99,15 @@ class SocketService(
     private fun registerListeners() {
         val s = socket ?: return
 
-        s.on(Socket.EVENT_CONNECT) { Log.i(TAG, "Socket connected") }
+        s.on(Socket.EVENT_CONNECT) {
+            Log.i(TAG, "Socket connected")
+            // Re-emit join_table after connection is established
+            if (currentState.tableCode.isNotEmpty()) {
+                Log.i(TAG, "Re-emitting join_table for ${currentState.tableCode}")
+                val data = JSONObject().apply { put("tableCode", currentState.tableCode) }
+                s.emit("join_table", data)
+            }
+        }
         s.on(Socket.EVENT_DISCONNECT) { Log.i(TAG, "Socket disconnected") }
         s.on(Socket.EVENT_CONNECT_ERROR) { args ->
             Log.e(TAG, "Connect error: ${args.joinToString()}")
@@ -123,7 +140,8 @@ class SocketService(
                 currentState = currentState.copy(
                     phase = phase,
                     tournamentId = data.optString("tournamentId", ""),
-                    tableCode = displayCode,
+                    // Don't overwrite tableCode with displayCode - they are different!
+                    // tableCode is the table password (e.g. SNGT01), displayCode is tournament name (e.g. REAL66)
                     sb = sb,
                     bb = bb,
                     pot = data.optInt("pot", 0),
@@ -269,6 +287,7 @@ class SocketService(
         }
 
         s.on(EVT_TURN_CHANGED) { args ->
+            Log.i(TAG, "turn_changed event received!")
             if (args.isNotEmpty() && args[0] is JSONObject) {
                 val data = args[0] as JSONObject
                 val actingIndex = data.optInt("actingIndex", -1)
@@ -276,6 +295,7 @@ class SocketService(
                 val currentBet = data.optInt("currentBet", 0)
                 val serverSeats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(serverSeats)
+                Log.i(TAG, "turn_changed: actingIndex=$actingIndex, mySeatIndex=${mySeat?.seatIndex ?: currentState.mySeatIndex}, isMyTurn=${actingIndex == (mySeat?.seatIndex ?: currentState.mySeatIndex)}")
                 val seats = if (serverSeats.isNotEmpty()) serverSeats.toMutableList() else currentState.seats.toMutableList()
                 for (i in seats.indices) {
                     seats[i] = seats[i].copy(isActing = i == actingIndex)

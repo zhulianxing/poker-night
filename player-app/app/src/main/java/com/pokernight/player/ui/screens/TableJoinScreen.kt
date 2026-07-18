@@ -60,6 +60,23 @@ fun TableJoinScreen(
         }
     }
 
+    // Auto-navigate if player is already seated or tournament already started
+    LaunchedEffect(tableStatus?.tournament?.status, tableStatus?.players) {
+        val status = tableStatus ?: return@LaunchedEffect
+        val tournament = status.tournament ?: return@LaunchedEffect
+        val myPlayerId = viewModel.getPlayerId()
+        val alreadySeated = status.players.any { it.playerId == myPlayerId }
+        if (alreadySeated && (tournament.status == "started" || tournament.status == "active" || tournament.status == "running")) {
+            // Skip lobby, go straight to game
+            android.util.Log.d("TableJoin", "Player already seated and tournament started, navigating to game")
+            onJoinSuccess(tableCode)
+        } else if (alreadySeated && tournament.status == "registering") {
+            // Go to lobby to wait
+            android.util.Log.d("TableJoin", "Player already seated, navigating to lobby")
+            onJoinSuccess(tableCode)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

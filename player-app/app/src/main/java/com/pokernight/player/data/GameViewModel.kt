@@ -71,6 +71,8 @@ class GameViewModel : ViewModel() {
         )
     }
 
+    fun getPlayerId(): String? = AuthManager.getPlayerId()
+
     // ─── Auth: Email + Code ───
 
     fun sendCode(email: String, purpose: String) {
@@ -257,8 +259,18 @@ class GameViewModel : ViewModel() {
     // ─── Socket ───
 
     fun connectSocket(tableCode: String) {
-        if (socketService != null) return
+        // If socketService exists but is disconnected, recreate it
+        if (socketService != null) {
+            if (socketService?.isConnected() == true) {
+                android.util.Log.i("GameViewModel", "connectSocket: socket already connected, skipping")
+                return
+            }
+            android.util.Log.i("GameViewModel", "connectSocket: socketService exists but disconnected, recreating")
+            socketService?.disconnect()
+            socketService = null
+        }
         val token = AuthManager.getToken()
+        android.util.Log.i("GameViewModel", "connectSocket: token=${if (token != null) token.take(20) + "..." else "null"}, tableCode=$tableCode")
         socketService = SocketService(
             onStateUpdate = { state -> _gameState.value = state },
             onEvent = { event, data ->
@@ -270,6 +282,8 @@ class GameViewModel : ViewModel() {
             },
         )
         socketService?.connect(token)
+        // Note: joinTable is called here but Socket may not be connected yet.
+        // SocketService will re-emit join_table on EVENT_CONNECT.
         socketService?.joinTable(tableCode)
         _uiState.value = _uiState.value.copy(socketConnected = true)
     }
