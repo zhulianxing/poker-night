@@ -18,7 +18,7 @@ class SocketService {
 
     companion object {
         private const val TAG = "SocketService"
-        private const val SERVER_URL = "http://43.164.130.145"
+        private const val SERVER_URL = "https://pokernight.cc"
     }
 
     private var socket: Socket? = null

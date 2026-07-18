@@ -46,8 +46,8 @@ fun IdleScreen(
     modifier: Modifier = Modifier,
 ) {
     val tableCode = state.tableCode
-    val payUrl = "http://43.164.130.145/pay?table=$tableCode"
-    val downloadUrl = "http://43.164.130.145/download"
+    val payUrl = "https://pokernight.cc/pay?table=$tableCode"
+    val downloadUrl = "https://pokernight.cc/download"
 
     // Carousel state
     var carouselPage by remember { mutableStateOf(0) }

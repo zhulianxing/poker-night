@@ -10,8 +10,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.net.URISyntaxException
 
-const val BASE_URL = "http://43.164.130.145"
-const val SOCKET_URL = "http://43.164.130.145"
+const val BASE_URL = "https://pokernight.cc"
+const val SOCKET_URL = "https://pokernight.cc"
 
 object NetworkProvider {
 

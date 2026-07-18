@@ -44,8 +44,8 @@ fun WaitingScreen(
     modifier: Modifier = Modifier,
 ) {
     val tableCode = state.tableCode
-    val payUrl = "http://43.164.130.145/pay?table=$tableCode"
-    val downloadUrl = "http://43.164.130.145/download"
+    val payUrl = "https://pokernight.cc/pay?table=$tableCode"
+    val downloadUrl = "https://pokernight.cc/download"
 
     val seatedPlayers = state.seats.filter { it.status != PlayerStatus.EMPTY }
     val maxPlayers = 6
