@@ -630,6 +630,17 @@ class SNGManager {
         showdown: false,
         seats: this.getSeatsSnapshot(),
       });
+    } else if (showdownWinners && showdownWinners.length > 0) {
+      // 摊牌获胜（筹码已在 showdown() 中分配）
+      console.log(`[SNG] Hand #${hand.handNumber} finished: ${showdownWinners.map(w => w.player.nickname || w.player.id.substring(0,8)).join(',')} wins ${hand.pot} (showdown)`);
+      this.emit('hand_result', {
+        handNumber: hand.handNumber,
+        winnerId: showdownWinners[0].player.id,
+        winners: showdownWinners.map(w => w.player.id),
+        pot: hand.pot,
+        showdown: true,
+        seats: this.getSeatsSnapshot(),
+      });
     }
 
     // 检查淘汰
