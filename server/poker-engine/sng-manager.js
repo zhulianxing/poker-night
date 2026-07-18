@@ -57,6 +57,7 @@ class SNGManager {
   startBlindTimer() {
     const interval = this.tournament.blind_interval || SNG_DEFAULTS.BLIND_INTERVAL;
     this.blindTimer = setInterval(() => {
+      if (this.blindLevel >= 30) { console.log('[SNG] Blind level capped at 30'); return; }
       this.blindLevel++;
       console.log(`[SNG] Blind level up to ${this.blindLevel}`);
       this.emit('blind_level_up', {
