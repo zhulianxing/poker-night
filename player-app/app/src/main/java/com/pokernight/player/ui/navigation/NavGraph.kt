@@ -25,11 +25,11 @@ object Routes {
     const val SCANNING = "scanning"
     const val TABLE_GAME = "table_game/{tableCode}"
     const val TABLE_JOIN = "table_join/{tableCode}"
-    const val TABLE_LOBBY = "table_lobby/{tournamentId}"
+    const val TABLE_LOBBY = "table_lobby/{tableCode}"
 
     fun tableGame(code: String) = "table_game/$code"
     fun tableJoin(code: String) = "table_join/$code"
-    fun tableLobby(tournamentId: String) = "table_lobby/$tournamentId"
+    fun tableLobby(tableCode: String) = "table_lobby/$tableCode"
 }
 
 @Composable
@@ -118,10 +118,11 @@ fun PokerNavGraph(
             TableJoinScreen(
                 viewModel = viewModel,
                 tableCode = tableCode,
-                onJoinSuccess = { tournamentId ->
-                    navController.navigate(Routes.tableLobby(tournamentId)) {
+                onJoinSuccess = { tableCode ->
+                    navController.navigate(Routes.tableLobby(tableCode)) {
                         popUpTo(Routes.TABLE_JOIN) { inclusive = true }
                     }
+                    viewModel.clearJoinResult()
                 },
                 onBack = {
                     navController.popBackStack()
@@ -131,14 +132,14 @@ fun PokerNavGraph(
 
         composable(
             route = Routes.TABLE_LOBBY,
-            arguments = listOf(navArgument("tournamentId") { type = NavType.StringType }),
+            arguments = listOf(navArgument("tableCode") { type = NavType.StringType }),
         ) { backStackEntry ->
-            val tournamentId = backStackEntry.arguments?.getString("tournamentId") ?: ""
+            val tableCode = backStackEntry.arguments?.getString("tableCode") ?: ""
             TableLobbyScreen(
                 viewModel = viewModel,
-                tournamentId = tournamentId,
-                onTournamentStart = { tableCode ->
-                    navController.navigate(Routes.tableGame(tableCode)) {
+                tableCode = tableCode,
+                onTournamentStart = { code ->
+                    navController.navigate(Routes.tableGame(code)) {
                         popUpTo(Routes.TABLE_LOBBY) { inclusive = true }
                     }
                 },

@@ -45,6 +45,8 @@ class SocketService {
                 reconnectionAttempts = 5
                 reconnectionDelay = 2000
                 timeout = 10000
+                // TV Display connects as anonymous spectator (no JWT)
+                query = "role=tv"
             }
 
             socket = IO.socket(SERVER_URL, options)
@@ -55,7 +57,7 @@ class SocketService {
                     // Join as spectator
                     val joinData = JSONObject().apply {
                         put("tableCode", tableCode)
-                        put("role", "spectator")
+                        put("role", "tv")
                     }
                     emit(ClientEvent.JOIN_TABLE, joinData)
                     onConnect()

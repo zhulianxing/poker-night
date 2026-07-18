@@ -266,17 +266,27 @@ app.post('/api/v1/tournaments/:id/join', auth, async (req, res) => {
 
     await client.query('COMMIT');
 
-    // 通过 Socket.IO 广播给牌桌房间
+    // 通过 poker-socket 广播给牌桌房间
     const tableResult = await query('SELECT code FROM tables WHERE id = $1', [tournament.table_id]);
     const tableCode = tableResult.rows[0]?.code;
     if (tableCode) {
-      app.locals.io?.to(`table:${tableCode}`).emit('seat_joined', {
-        tournamentId: tournament.id,
-        playerId: req.player.id,
-        nickname: req.player.nickname,
-        seatIndex,
-        chipCount: tournament.start_chips,
-      });
+      try {
+        await fetch(`http://localhost:${process.env.POKER_SOCKET_PORT || 3011}/internal/broadcast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'seat_joined',
+            tableCode,
+            data: {
+              tournamentId: tournament.id,
+              playerId: req.player.id,
+              nickname: req.player.nickname,
+              seatIndex,
+              chipCount: tournament.start_chips,
+            }
+          })
+        });
+      } catch (e) { console.error('Failed to broadcast seat_joined:', e.message); }
     }
 
     res.json({ success: true, seatIndex, chipCount: tournament.start_chips });
@@ -323,16 +333,26 @@ app.post('/api/v1/tournaments/:id/leave', auth, async (req, res) => {
 
     await client.query('COMMIT');
 
-    // 通过 Socket.IO 广播给牌桌房间
+    // 通过 poker-socket 广播给牌桌房间
     const tableResult = await query('SELECT code FROM tables WHERE id = $1', [tournament.table_id]);
     const tableCode = tableResult.rows[0]?.code;
     if (tableCode) {
-      app.locals.io?.to(`table:${tableCode}`).emit('seat_left', {
-        tournamentId: tournament.id,
-        playerId: req.player.id,
-        nickname: req.player.nickname,
-        seatIndex: playerRecord.seat_index,
-      });
+      try {
+        await fetch(`http://localhost:${process.env.POKER_SOCKET_PORT || 3011}/internal/broadcast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'seat_left',
+            tableCode,
+            data: {
+              tournamentId: tournament.id,
+              playerId: req.player.id,
+              nickname: req.player.nickname,
+              seatIndex: playerRecord.seat_index,
+            }
+          })
+        });
+      } catch (e) { console.error('Failed to broadcast seat_left:', e.message); }
     }
 
     res.json({ success: true });

@@ -72,9 +72,11 @@ data class TournamentPlayer(
 )
 
 data class JoinResponse(
-    val seatIndex: Int,
-    val tournamentId: String,
-    val startChips: Int,
+    val success: Boolean = true,
+    val seatIndex: Int = 0,
+    val tournamentId: String = "",
+    val chipCount: Int = 0,
+    val startChips: Int = 0,
 )
 
 data class Card(

@@ -186,13 +186,35 @@ class GameViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val result = api.joinTournament(tournamentId, "Bearer $token")
-                _joinResult.value = result
+                _joinResult.value = result.copy(tournamentId = tournamentId)
                 _uiState.value = _uiState.value.copy(isLoading = false)
                 _toast.value = "入座成功！座位号: ${result.seatIndex}"
+            } catch (e: retrofit2.HttpException) {
+                val errorBody = try {
+                    e.response()?.errorBody()?.string() ?: ""
+                } catch (_: Exception) { "" }
+                android.util.Log.d("GameVM", "joinTournament HttpException: code=${e.code()} body=$errorBody")
+                if (errorBody.contains("already joined") || errorBody.contains("already")) {
+                    // Already joined — navigate to lobby anyway
+                    _joinResult.value = JoinResponse(
+                        success = true,
+                        seatIndex = 0,
+                        tournamentId = tournamentId,
+                        chipCount = 1000,
+                        startChips = 1000,
+                    )
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = null)
+                } else {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = errorBody.ifEmpty { e.message() ?: "入座失败" })
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message ?: "入座失败")
             }
         }
+    }
+
+    fun clearJoinResult() {
+        _joinResult.value = null
     }
 
     fun leaveTournament(tournamentId: String, onSuccess: () -> Unit) {

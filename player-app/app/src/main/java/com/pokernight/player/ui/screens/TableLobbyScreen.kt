@@ -24,9 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,7 +40,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun TableLobbyScreen(
     viewModel: GameViewModel,
-    tournamentId: String,
+    tableCode: String,
     onTournamentStart: (String) -> Unit,
     onLeave: () -> Unit,
 ) {
@@ -52,13 +49,15 @@ fun TableLobbyScreen(
     val uiState by viewModel.uiState.collectAsState()
     val gameState by viewModel.gameState.collectAsState()
 
-    // Countdown to tournament start (simulated - check tournament status)
-    var countdownSec by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(tournamentId) {
-        // Re-fetch status periodically
+    LaunchedEffect(tableCode) {
+        if (tableCode.isNotEmpty()) {
+            viewModel.fetchTableStatus(tableCode)
+        }
+        // Periodic refresh
         while (true) {
-            viewModel.fetchTableStatus(tableStatus?.table?.code ?: "")
+            if (tableCode.isNotEmpty()) {
+                viewModel.fetchTableStatus(tableCode)
+            }
             delay(5000)
         }
     }
@@ -86,7 +85,7 @@ fun TableLobbyScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = {
-                    viewModel.leaveTournament(tournamentId, onLeave)
+                    viewModel.leaveTournament(tableCode, onLeave)
                 }) {
                     Text("← 离开座位", color = Color(0xFFE53935))
                 }
@@ -128,7 +127,7 @@ fun TableLobbyScreen(
                         ) {
                             Text("初始筹码", color = White.copy(alpha = 0.7f), fontSize = 14.sp)
                             Text(
-                                text = "${result.startChips}",
+                                text = "${if (result.chipCount > 0) result.chipCount else result.startChips}",
                                 color = Gold,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
@@ -239,7 +238,7 @@ fun TableLobbyScreen(
 
             // Leave button
             Button(
-                onClick = { viewModel.leaveTournament(tournamentId, onLeave) },
+                onClick = { viewModel.leaveTournament(tableCode, onLeave) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),

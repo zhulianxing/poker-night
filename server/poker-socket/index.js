@@ -50,11 +50,38 @@ io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id} role=${socket.isTV ? 'tv' : 'player'}`);
 
   // 加入牌桌房间
-  socket.on('join_table', (data) => {
+  socket.on('join_table', async (data) => {
     const tableCode = typeof data === 'string' ? data : data?.tableCode;
     if (!tableCode) return;
     socket.join(`table:${tableCode}`);
     console.log(`[Socket] ${socket.id} joined table:${tableCode}`);
+
+    // 发送当前桌状态给新连接的客户端（TV 或玩家）
+    try {
+      const tableResult = await query('SELECT * FROM tables WHERE code = $1', [tableCode]);
+      if (tableResult.rows.length > 0) {
+        const table = tableResult.rows[0];
+        const tournamentResult = await query(
+          `SELECT * FROM tournaments WHERE table_id = $1 AND status IN ('idle','registering','started') ORDER BY created_at DESC LIMIT 1`,
+          [table.id]
+        );
+        const tournament = tournamentResult.rows[0] || null;
+        let players = [];
+        if (tournament) {
+          const playerResult = await query(
+            `SELECT tp.seat_index, tp.chip_count, tp.status, p.nickname, p.avatar, p.id as player_id
+             FROM tournament_players tp JOIN players p ON tp.player_id = p.id
+             WHERE tp.tournament_id = $1 ORDER BY tp.seat_index`,
+            [tournament.id]
+          );
+          players = playerResult.rows;
+        }
+        socket.emit('table_state', { table, tournament, players });
+        console.log(`[Socket] Sent table_state to ${socket.id} for ${tableCode} (${players.length} players)`);
+      }
+    } catch (err) {
+      console.error(`[Socket] Error sending table_state: ${err.message}`);
+    }
 
     // 检查是否是重连玩家
     if (socket.player) {
@@ -171,6 +198,18 @@ function handleReconnect(socket, tournamentId) {
 // ============================================================
 // 内部 API（供 payment-svc 调用）
 // ============================================================
+app.post('/internal/broadcast', (req, res) => {
+  try {
+    const { event, tableCode, data } = req.body;
+    if (!event || !tableCode) return res.status(400).json({ error: 'missing event or tableCode' });
+    io.to(`table:${tableCode}`).emit(event, data || {});
+    console.log(`[Socket] Broadcast ${event} to table:${tableCode}`);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/internal/activate', async (req, res) => {
   try {
     const { tournamentId } = req.body;

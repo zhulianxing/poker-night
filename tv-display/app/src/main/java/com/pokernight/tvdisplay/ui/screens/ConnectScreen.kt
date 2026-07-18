@@ -23,9 +23,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import com.pokernight.tvdisplay.ui.theme.*
 import com.pokernight.tvdisplay.ui.util.generateQrCode
 
@@ -127,7 +127,7 @@ fun ConnectScreen(
                 modifier = Modifier
                     .width(360.dp)
                     .height(56.dp),
-                colors = ButtonDefaults.colors(
+                colors = ButtonDefaults.buttonColors(
                     containerColor = GoldAccent,
                     contentColor = Color.Black,
                     disabledContainerColor = GoldAccent.copy(alpha = 0.3f),
