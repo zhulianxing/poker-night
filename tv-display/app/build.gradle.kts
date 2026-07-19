@@ -86,7 +86,7 @@ dependencies {
     implementation(libs.androidx.tv.material)
 
     implementation(libs.socket.io.client)
-    implementation(libs.okhttp)
+    implementation(libs.java.websocket)
     implementation(libs.gson)
     implementation(libs.coil.compose)
     implementation(libs.zxing.core)

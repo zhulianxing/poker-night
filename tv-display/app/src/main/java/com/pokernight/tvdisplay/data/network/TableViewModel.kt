@@ -120,9 +120,9 @@ class TableViewModel : ViewModel() {
             }
 
             ServerEvent.NEW_HAND -> {
+                // Keep communityCards visible until hand_started clears them
                 _uiState.update {
                     it.copy(
-                        communityCards = emptyList(),
                         stage = Stage.PREFLOP,
                         actingIndex = -1,
                     )
@@ -158,6 +158,7 @@ class TableViewModel : ViewModel() {
             ServerEvent.STAGE_CHANGED -> {
                 val stage = data.optString("stage", "")
                 val communityCards = parseCards(data.optJSONArray("communityCards"))
+                Log.i(TAG, "stage_changed: stage=$stage, cards=${communityCards.size}")
                 val pot = data.optInt("pot", _uiState.value.pot)
                 val currentBet = data.optInt("currentBet", 0)
                 val actingIndex = data.optInt("actingIndex", -1)
@@ -260,7 +261,8 @@ class TableViewModel : ViewModel() {
                         }
                     }
                 }
-                _uiState.update { it.copy(stage = Stage.SHOWDOWN, pot = pot) }
+                val communityCards = parseCards(data.optJSONArray("communityCards"))
+                _uiState.update { it.copy(stage = Stage.SHOWDOWN, pot = pot, communityCards = communityCards.ifEmpty { it.communityCards }) }
             }
 
             ServerEvent.HAND_RESULT -> {

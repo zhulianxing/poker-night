@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.Text
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import com.pokernight.tvdisplay.data.model.PlayerSeat
@@ -140,54 +141,44 @@ private fun SeatRow(
  */
 @Composable
 private fun CenterArea(state: TableState) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.padding(vertical = 16.dp),
-    ) {
-        // Stage label
-        val stageDisplay = if (state.stage.isNotEmpty()) state.stage.uppercase() else "WAITING"
-        Text(
-            text = stageDisplay,
-            color = GoldAccent,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-        )
-
-        // Community cards
-        CommunityCardsRow(cards = state.communityCards)
-
-        // Pot display — always show, even when 0
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "🏆",
-                color = GoldAccent,
-                fontSize = 20.sp,
-            )
-            Text(
-                text = "POT",
-                color = TextSecondary,
-                fontSize = 14.sp,
-            )
-            Text(
-                text = formatPot(state.pot),
-                color = GoldAccent,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-            )
+    val stageDisplay = if (state.stage.isNotEmpty()) state.stage.uppercase() else "WAITING"
+    val potText = formatPot(state.pot)
+    val betText = formatPot(state.currentBet)
+    
+    // Build card display: "A♠ K♥ 2♦" style (ranks + suit symbols)
+    val cardsStr = state.communityCards.joinToString("  ") { card -> card.rank + card.suit }
+    
+    // Build all text lines — single Text composable to work around Android TV Column issues
+    val displayText = buildString {
+        appendLine(stageDisplay)
+        if (cardsStr.isNotEmpty()) {
+            appendLine("")
+            appendLine(cardsStr)
         }
-
-        // Current bet — always show
+        if (state.pot > 0) {
+            appendLine("")
+            append("Pot: " + potText)
+        }
+        if (state.currentBet > 0) {
+            append("  |  Bet: " + betText)
+        }
+    }.trimEnd()
+    
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
-            text = "Bet: ${state.currentBet}",
-            color = if (state.currentBet > 0) GoldAccent else TextSecondary,
-            fontSize = 14.sp,
+            text = displayText,
+            color = GoldAccent,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            lineHeight = 26.sp,
         )
     }
 }
+
 
 private fun formatPot(pot: Int): String {
     return when {

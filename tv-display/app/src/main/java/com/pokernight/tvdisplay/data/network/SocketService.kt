@@ -2,35 +2,39 @@ package com.pokernight.tvdisplay.data.network
 
 import android.util.Log
 import com.pokernight.tvdisplay.data.model.ClientEvent
-import com.pokernight.tvdisplay.data.model.ServerEvent
-import io.socket.client.IO
-import io.socket.client.Socket
-import io.socket.engineio.client.transports.WebSocket
-import io.socket.engineio.client.transports.Polling
+import org.java_websocket.client.WebSocketClient
+import org.java_websocket.handshake.ServerHandshake
+import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URISyntaxException
+import java.net.URI
+import kotlin.concurrent.thread
 
-/**
- * Socket.IO client wrapper for TV Display.
- * Connects to the poker server as a spectator.
- */
 class SocketService {
 
     companion object {
         private const val TAG = "SocketService"
-        private const val SERVER_URL = "https://pokernight.cc"
+        private const val WS_URL = "wss://pokernight.cc/socket.io/?EIO=4&transport=websocket&role=tv"
+        private const val EIO_OPEN = '0'
+        private const val EIO_CLOSE = '1'
+        private const val EIO_PING = '2'
+        private const val EIO_MESSAGE = '4'
+        private const val SIO_CONNECT = '0'
+        private const val SIO_DISCONNECT = '1'
+        private const val SIO_EVENT = '2'
+        private const val SIO_ERROR = '4'
     }
 
-    private var socket: Socket? = null
+    private var wsClient: WebSocketClient? = null
+    private var connected = false
+    private var shouldReconnect = false
+    private var reconnectThread: Thread? = null
 
-    /**
-     * Connect to the server and join a table as spectator.
-     * @param tableCode 6-character table code
-     * @param onEvent callback for server events: (eventName, data)
-     * @param onConnect called when connection is established
-     * @param onDisconnect called when disconnected
-     * @param onError called on connection error
-     */
+    private var savedTableCode: String? = null
+    private var savedOnEvent: ((String, JSONObject) -> Unit)? = null
+    private var savedOnConnect: (() -> Unit)? = null
+    private var savedOnDisconnect: (() -> Unit)? = null
+    private var savedOnError: ((String) -> Unit)? = null
+
     fun connect(
         tableCode: String,
         onEvent: (String, JSONObject) -> Unit,
@@ -38,93 +42,149 @@ class SocketService {
         onDisconnect: () -> Unit,
         onError: (String) -> Unit,
     ) {
+        savedTableCode = tableCode
+        savedOnEvent = onEvent
+        savedOnConnect = onConnect
+        savedOnDisconnect = onDisconnect
+        savedOnError = onError
+        shouldReconnect = true
+        doConnect()
+    }
+
+    private fun doConnect() {
         try {
-            val options = IO.Options().apply {
-                transports = arrayOf(Polling.NAME, WebSocket.NAME)
-                reconnection = true
-                reconnectionAttempts = 5
-                reconnectionDelay = 2000
-                timeout = 10000
-                // TV Display connects as anonymous spectator (no JWT)
-                query = "role=tv"
-            }
+            wsClient?.close()
+            wsClient = null
+            connected = false
 
-            socket = IO.socket(SERVER_URL, options)
+            Log.i(TAG, "Connecting to WebSocket: $WS_URL")
 
-            socket?.apply {
-                on(Socket.EVENT_CONNECT) {
-                    Log.i(TAG, "Socket connected")
-                    // Join as spectator
-                    val joinData = JSONObject().apply {
-                        put("tableCode", tableCode)
-                        put("role", "tv")
-                    }
-                    emit(ClientEvent.JOIN_TABLE, joinData)
-                    onConnect()
+            wsClient = object : WebSocketClient(URI(WS_URL)) {
+                override fun onOpen(handshake: ServerHandshake?) {
+                    Log.i(TAG, "onOpen — waiting for Engine.IO open")
                 }
 
-                on(Socket.EVENT_DISCONNECT) {
-                    Log.i(TAG, "Socket disconnected")
-                    onDisconnect()
+                override fun onMessage(msg: String?) {
+                    if (msg.isNullOrEmpty()) return
+                    Log.i(TAG, "RAW[${"$msg".take(200)}]") 
+                    handleEngineIOMessage(msg)
                 }
 
-                on(Socket.EVENT_CONNECT_ERROR) { args ->
-                    val msg = args?.firstOrNull()?.toString() ?: "Connection error"
-                    Log.e(TAG, "Connect error: $msg")
-                    onError(msg)
+                override fun onClose(code: Int, reason: String?, remote: Boolean) {
+                    Log.i(TAG, "onClose: $code $reason remote=$remote")
+                    handleDisconnect()
                 }
 
-                // Register all server→client events
-                val events = listOf(
-                    ServerEvent.TOURNAMENT_ACTIVATED,
-                    ServerEvent.COUNTDOWN_TICK,
-                    ServerEvent.TOURNAMENT_STARTED,
-                    ServerEvent.NEW_HAND,
-                    ServerEvent.HOLE_CARDS, // TV ignores but must handle
-                    ServerEvent.HAND_STARTED,
-                    ServerEvent.STAGE_CHANGED,
-                    ServerEvent.TURN_CHANGED,
-                    ServerEvent.ACTION_RESULT,
-                    ServerEvent.SHOWDOWN,
-                    ServerEvent.HAND_RESULT,
-                    ServerEvent.PLAYER_ELIMINATED,
-                    ServerEvent.TOURNAMENT_FINISHED,
-                    ServerEvent.BLIND_LEVEL_UP,
-                    ServerEvent.TABLE_STATE,
-                    ServerEvent.SEAT_JOINED,
-                    ServerEvent.SEAT_LEFT,
-                )
-
-                events.forEach { event ->
-                    on(event) { args ->
-                        val data = args?.firstOrNull()
-                        val json = if (data is JSONObject) data
-                        else if (data != null) JSONObject(data.toString())
-                        else JSONObject()
-                        Log.d(TAG, "Event received: $event -> $json")
-                        onEvent(event, json)
-                    }
+                override fun onError(ex: Exception?) {
+                    Log.e(TAG, "onError: ${ex?.message}", ex)
                 }
             }
 
-            socket?.connect()
-        } catch (e: URISyntaxException) {
-            Log.e(TAG, "URI Syntax error", e)
-            onError(e.message ?: "Invalid server URL")
+            wsClient?.connectionLostTimeout = 0
+            wsClient?.connect()
+
         } catch (e: Exception) {
             Log.e(TAG, "Connection error", e)
-            onError(e.message ?: "Connection failed")
+            savedOnError?.invoke(e.message ?: "Connection failed")
+            handleDisconnect()
         }
+    }
+
+    private fun handleEngineIOMessage(text: String) {
+        if (text.isEmpty()) return
+        when (text[0]) {
+            EIO_OPEN -> {
+                try {
+                    val sid = JSONObject(text.substring(1)).optString("sid", "?")
+                    Log.i(TAG, "Engine.IO open sid=$sid")
+                    wsClient?.send("40")
+                    Log.i(TAG, "Sent 40")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Bad open: $text", e)
+                }
+            }
+            EIO_CLOSE -> {
+                Log.i(TAG, "Engine.IO close")
+                wsClient?.close()
+                handleDisconnect()
+            }
+            EIO_PING -> wsClient?.send("3")
+            EIO_MESSAGE -> handleSocketIOMessage(text)
+            else -> Log.w(TAG, "Unknown EIO: '$text[0]'")
+        }
+    }
+
+    private fun handleSocketIOMessage(text: String) {
+        if (text.length < 2) return
+        when (text[1]) {
+            SIO_CONNECT -> {
+                Log.i(TAG, "SIO CONNECT (40)")
+                if (!connected) {
+                    connected = true
+                    savedTableCode?.let { code ->
+                        // Server join_table handler expects plain string, not object
+                        wsClient?.send("42[\"join_table\",\"$code\"]")
+                        Log.i(TAG, "Emitted join_table $code")
+                    }
+                    savedOnConnect?.invoke()
+                }
+            }
+            SIO_EVENT -> {
+                try {
+                    val arr = JSONArray(text.substring(2))
+                    val name = arr.optString(0, "")
+                    if (name.isEmpty()) return
+                    val data = if (arr.length() > 1 && arr.opt(1) is JSONObject) arr.getJSONObject(1) else JSONObject()
+                    Log.d(TAG, "Event: $name")
+                    savedOnEvent?.invoke(name, data)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Bad event: ${text.substring(2)}", e)
+                }
+            }
+            SIO_DISCONNECT -> {
+                Log.i(TAG, "SIO DISCONNECT")
+                handleDisconnect()
+            }
+            SIO_ERROR -> Log.e(TAG, "SIO ERROR: ${text.substring(2)}")
+            else -> Log.d(TAG, "SIO type '${text[1]}': ${text.substring(2)}")
+        }
+    }
+
+    fun emit(event: String, data: JSONObject) {
+        val arr = JSONArray().apply { put(event); put(data) }
+        wsClient?.send("42$arr")
+        Log.d(TAG, "Emitted: $event")
     }
 
     fun disconnect() {
-        socket?.apply {
-            disconnect()
-            off()
-        }
-        socket = null
-        Log.i(TAG, "Socket disconnected and cleaned up")
+        Log.i(TAG, "Disconnecting")
+        shouldReconnect = false
+        reconnectThread?.interrupt()
+        reconnectThread = null
+        wsClient?.close()
+        wsClient = null
+        connected = false
     }
 
-    fun isConnected(): Boolean = socket?.connected() == true
+    fun isConnected(): Boolean = connected && wsClient?.isOpen == true
+
+    private fun handleDisconnect() {
+        val wasConnected = connected
+        connected = false
+        wsClient = null
+        if (wasConnected) savedOnDisconnect?.invoke()
+        if (shouldReconnect) scheduleReconnect()
+    }
+
+    private fun scheduleReconnect() {
+        reconnectThread?.interrupt()
+        reconnectThread = thread {
+            try {
+                val delay = 1000L + (Math.random() * 4000).toLong()
+                Log.i(TAG, "Reconnect in ${delay}ms")
+                Thread.sleep(delay)
+                if (shouldReconnect) doConnect()
+            } catch (_: InterruptedException) {}
+        }
+    }
 }

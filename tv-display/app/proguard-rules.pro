@@ -13,6 +13,10 @@
 -keepattributes *Annotation*
 -keep class com.pokernight.tvdisplay.data.model.** { *; }
 
-# OkHttp
+# OkHttp (kept for any transitive usage; safe to remove once fully migrated)
 -dontwarn okhttp3.**
 -dontwarn okio.**
+
+# Java-WebSocket
+-keep class org.java_websocket.** { *; }
+-dontwarn org.java_websocket.**

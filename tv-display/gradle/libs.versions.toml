@@ -9,6 +9,7 @@ tvFoundation = "1.0.0-alpha10"
 tvMaterial = "1.0.0-alpha10"
 socketIo = "2.1.0"
 okhttp = "4.12.0"
+javaWebsocket = "1.6.0"
 gson = "2.10.1"
 coil = "2.6.0"
 zxing = "3.5.3"
@@ -29,6 +30,7 @@ androidx-tv-foundation = { group = "androidx.tv", name = "tv-foundation", versio
 androidx-tv-material = { group = "androidx.tv", name = "tv-material", version.ref = "tvMaterial" }
 socket-io-client = { group = "io.socket", name = "socket.io-client", version.ref = "socketIo" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+java-websocket = { group = "org.java-websocket", name = "Java-WebSocket", version.ref = "javaWebsocket" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }

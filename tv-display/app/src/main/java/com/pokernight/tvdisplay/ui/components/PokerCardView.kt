@@ -101,15 +101,18 @@ fun CommunityCardsRow(
             if (card != null) {
                 PokerCardView(card = card)
             } else {
-                // Empty placeholder
+                // Empty placeholder — 🔴 bright for debug
                 Box(
                     modifier = Modifier
                         .width(56.dp)
                         .height(80.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0x22FFFFFF))
-                        .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(6.dp)),
-                )
+                        .background(Color(0x33FF0000))
+                        .border(2.dp, Color(0xFFFF0000), RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = "-", color = Color(0xFFFF4444), fontSize = 24.sp)
+                }
             }
         }
     }
