@@ -25,7 +25,11 @@ import com.pokernight.tvdisplay.data.model.PlayerStatus
 import com.pokernight.tvdisplay.ui.theme.*
 
 /**
- * Compact player seat box — shows all 6 positions around the table.
+ * Player seat box — uniform layout for all 6 positions.
+ *
+ * Every seat with data (active, folded, all-in, or eliminated) renders
+ * the same avatar+name+chips+status layout. Only truly empty placeholders
+ * (no server data at all) get a minimal dash.
  */
 @Composable
 fun PlayerSeatView(
@@ -38,31 +42,25 @@ fun PlayerSeatView(
     val isAllIn = seat.status == PlayerStatus.ALL_IN
     val isActing = seat.isActing
 
-    // Blinking border when acting
+    // Blinking border for active player
     val infiniteTransition = rememberInfiniteTransition(label = "acting_blink")
-    val borderAlpha by infiniteTransition.animateFloat(
+    val blinkAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
         targetValue = 1.0f,
         animationSpec = infiniteRepeatable(animation = tween(600), repeatMode = RepeatMode.Reverse),
         label = "border_alpha",
     )
 
-    // If no data at all (seat doesn't exist in server data), show as placeholder
-    val isPlaceholder = seat.status == PlayerStatus.EMPTY && seat.playerId.isEmpty()
+    // True placeholder vs eliminated-with-data
+    val isPlaceholder = isEmpty && seat.playerId.isEmpty()
+    val hasData = !isPlaceholder && (isEliminated || !isEmpty)
 
-    // Alpha: placeholder/eliminated ~50%, folded subtle, active 100%
-    val seatAlpha = when {
-        isPlaceholder -> 0.5f
-        isEliminated -> 0.5f
-        isFolded -> 0.4f
-        else -> 1.0f
-    }
-
-    // Border styling
+    // ── Border ──
     val borderColor = when {
-        isActing -> RedAction.copy(alpha = borderAlpha)
+        isActing -> RedAction.copy(alpha = blinkAlpha)
         isAllIn -> GoldAccent
-        isEliminated || isPlaceholder -> SeatBorder.copy(alpha = 0.3f)
+        isPlaceholder -> SeatBorder.copy(alpha = 0.2f)
+        isEliminated -> SeatBorder.copy(alpha = 0.5f)
         else -> SeatBorder
     }
     val borderWidth = when {
@@ -70,11 +68,16 @@ fun PlayerSeatView(
         else -> 1.dp
     }
 
-    // Background
+    // ── Background ──
     val bgColor = when {
-        isPlaceholder -> SeatBg.copy(alpha = 0.2f)
-        isEliminated -> SeatBg.copy(alpha = 0.3f)
+        isPlaceholder -> SeatBg.copy(alpha = 0.15f)
         else -> SeatBg
+    }
+
+    // ── Overall alpha (consistent across all seats) ──
+    val seatAlpha = when {
+        isPlaceholder -> 0.4f
+        else -> 0.85f
     }
 
     Box(
@@ -88,54 +91,22 @@ fun PlayerSeatView(
             .padding(horizontal = 6.dp, vertical = 2.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // ── Placeholder seat (no data) ──
         if (isPlaceholder) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("-", color = TextTertiary.copy(alpha = 0.4f), fontSize = 10.sp)
-            }
-        }
-        // ── Eliminated seat ──
-        else if (isEliminated) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = seat.avatar.ifEmpty { "\uD83C\uDCCF" },
-                        fontSize = 12.sp,
-                    )
-                    Text(
-                        text = seat.nickname.ifEmpty { "P${seat.seatIndex + 1}" },
-                        color = TextPrimary.copy(alpha = 0.6f),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                    )
-                }
-                Text(
-                    text = formatChipCount(seat.chipCount),
-                    color = ChipGreen.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-        // ── Active seat (playing/folded/all-in) ──
-        else {
+            // ── Empty slot: minimal dash ──
+            Text(
+                "—",
+                color = TextTertiary.copy(alpha = 0.3f),
+                fontSize = 10.sp,
+                modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally),
+            )
+        } else {
+            // ── Uniform layout for ALL seats with data ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Left: avatar + name + dealer button
+                // Left: avatar + name (+ dealer badge)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -146,7 +117,7 @@ fun PlayerSeatView(
                     )
                     Text(
                         text = seat.nickname.ifEmpty { "P${seat.seatIndex + 1}" },
-                        color = TextPrimary,
+                        color = if (isEliminated) TextPrimary.copy(alpha = 0.6f) else TextPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -166,28 +137,44 @@ fun PlayerSeatView(
 
                 // Right: chips + status
                 Column(horizontalAlignment = Alignment.End) {
+                    val textColor = if (isEliminated) ChipGreen.copy(alpha = 0.5f) else ChipGreen
                     Text(
                         text = formatChipCount(seat.chipCount),
-                        color = ChipGreen,
+                        color = textColor,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                     )
-                    if (seat.lastAction.isNotEmpty()) {
-                        Text(seat.lastAction, color = TextSecondary, fontSize = 10.sp, maxLines = 1)
-                    } else {
-                        val statusText = when (seat.status) {
-                            PlayerStatus.FOLDED -> "Fold"
-                            PlayerStatus.ALL_IN -> "All-In"
-                            PlayerStatus.WAITING -> "Wait"
-                            else -> ""
-                        }
-                        if (statusText.isNotEmpty()) {
-                            Text(statusText, color = TextTertiary, fontSize = 10.sp)
-                        }
-                    }
+                    StatusText(seat)
                 }
             }
         }
+    }
+}
+
+/**
+ * Status line — shows action text, status badge, or OUT for eliminated.
+ */
+@Composable
+private fun StatusText(seat: PlayerSeat) {
+    val statusText = when (seat.status) {
+        PlayerStatus.ELIMINATED -> "OUT"
+        PlayerStatus.FOLDED -> "Fold"
+        PlayerStatus.ALL_IN -> "All-In"
+        PlayerStatus.WAITING -> "Wait"
+        else -> null
+    }
+    val actionText = seat.lastAction.takeIf { it.isNotEmpty() }
+
+    val text = actionText ?: statusText ?: ""
+    val color = when (seat.status) {
+        PlayerStatus.ELIMINATED -> RedAction.copy(alpha = 0.6f)
+        PlayerStatus.FOLDED -> TextTertiary
+        PlayerStatus.ALL_IN -> GoldAccent
+        else -> TextSecondary
+    }
+
+    if (text.isNotEmpty()) {
+        Text(text, color = color, fontSize = 10.sp, maxLines = 1)
     }
 }
 
