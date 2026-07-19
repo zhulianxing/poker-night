@@ -1,23 +1,21 @@
 /* ============================================
    Poker Night Merchant Dashboard - App Logic
+   API paths aligned with backend /api/v1/merchant/*
    ============================================ */
 
 (function () {
   'use strict';
 
   // ---- Config ----
-  const API_BASE = '/merchant/api/v1';
+  // Nginx proxy: /merchant/api/v1/ → /api/v1/
+  // So /merchant/api/v1/merchant/xxx → backend /api/v1/merchant/xxx
+  const API_BASE = '/merchant/api/v1/merchant';
   const PAGE_SIZE = 15;
-  const IS_DEMO = localStorage.getItem('pn_merchant_token') === 'demo-token';
 
   // ---- State ----
   let currentRoute = 'dashboard';
   let ordersPage = 1;
   let ordersTotal = 0;
-  let ordersData = [];
-  let devicesData = [];
-  let settlementsData = [];
-  let refundsData = [];
 
   // ---- Init ----
   function init() {
@@ -29,7 +27,8 @@
 
     // Show merchant info
     const info = JSON.parse(localStorage.getItem('pn_merchant_info') || '{}');
-    document.getElementById('merchantInfo').textContent = info.name || info.username || '商户';
+    const el = document.getElementById('merchantInfo');
+    if (el) el.textContent = info.name || info.email || '商户';
 
     // Clock
     updateClock();
@@ -38,23 +37,31 @@
     // Nav events
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
-        const route = item.dataset.route;
-        navigateTo(route);
+        navigateTo(item.dataset.route);
       });
     });
 
     // Mobile toggle
-    document.getElementById('mobileToggle').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
-    });
+    const toggle = document.getElementById('mobileToggle');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        document.getElementById('sidebar')?.classList.toggle('open');
+      });
+    }
 
     // Logout
-    document.getElementById('logoutBtn').addEventListener('click', logout);
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', logout);
+    }
 
     // Modal close on overlay click
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) closeModal();
-    });
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeModal();
+      });
+    }
 
     // Initial route
     const hash = window.location.hash.slice(1);
@@ -73,7 +80,8 @@
     const dd = String(now.getDate()).padStart(2, '0');
     const hh = String(now.getHours()).padStart(2, '0');
     const mi = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('currentTime').textContent = `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+    const el = document.getElementById('currentTime');
+    if (el) el.textContent = `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
   }
 
   // ---- Router ----
@@ -81,12 +89,10 @@
     currentRoute = route;
     window.location.hash = route;
 
-    // Update nav
     document.querySelectorAll('.nav-item').forEach(item => {
       item.classList.toggle('active', item.dataset.route === route);
     });
 
-    // Update title
     const titles = {
       dashboard: '数据看板',
       orders: '订单管理',
@@ -94,14 +100,15 @@
       settlements: '结算管理',
       refunds: '退款管理'
     };
-    document.getElementById('pageTitle').textContent = titles[route] || '数据看板';
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.textContent = titles[route] || '数据看板';
 
     // Close sidebar on mobile
-    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar')?.classList.remove('open');
 
-    // Render
     const content = document.getElementById('contentArea');
-    content.innerHTML = '';
+    if (!content) return;
+    content.innerHTML = '<div class="loading">加载中</div>';
 
     switch (route) {
       case 'dashboard': renderDashboard(content); break;
@@ -123,18 +130,24 @@
       opts.headers['Content-Type'] = 'application/json';
     }
 
-    const res = await fetch(API_BASE + path, opts);
-    if (res.status === 401) {
-      localStorage.removeItem('pn_merchant_token');
-      window.location.href = 'login.html';
+    try {
+      const res = await fetch(API_BASE + path, opts);
+      if (res.status === 401) {
+        showToast('登录已过期，请重新登录', 'error');
+        setTimeout(() => { localStorage.removeItem('pn_merchant_token'); window.location.href = 'login.html'; }, 1500);
+        return null;
+      }
+      return res.json();
+    } catch (err) {
+      console.error('API error:', err);
       return null;
     }
-    return res.json();
   }
 
   // ---- Toast ----
   function showToast(msg, type) {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = 'toast ' + (type || '');
     toast.textContent = msg;
@@ -146,12 +159,13 @@
   function openModal(title, bodyHTML, actionsHTML) {
     const overlay = document.getElementById('modalOverlay');
     const modal = document.getElementById('modalContent');
+    if (!overlay || !modal) return;
     modal.innerHTML = `<div class="modal-title">${title}</div>${bodyHTML}<div class="modal-actions">${actionsHTML || ''}</div>`;
     overlay.classList.add('show');
   }
 
   function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('show');
+    document.getElementById('modalOverlay')?.classList.remove('show');
   }
 
   // ---- Logout ----
@@ -170,17 +184,17 @@
         <div class="stat-card">
           <div class="stat-label">今日订单数</div>
           <div class="stat-value" id="todayOrders">--</div>
-          <div class="stat-sub" id="todayOrdersSub">加载中...</div>
+          <div class="stat-sub" id="todayOrdersSub">单</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">今日流水总额</div>
           <div class="stat-value gold" id="todayRevenue">--</div>
-          <div class="stat-sub" id="todayRevenueSub">¥</div>
+          <div class="stat-sub" id="todayRevenueSub">元</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">待结算金额</div>
           <div class="stat-value warning" id="pendingSettlement">--</div>
-          <div class="stat-sub" id="pendingSettlementSub">¥</div>
+          <div class="stat-sub" id="pendingSettlementSub">元</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">本周赛事场次</div>
@@ -193,9 +207,9 @@
           <div class="stat-sub" id="weekTrafficSub">人次</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">在线设备数</div>
-          <div class="stat-value success" id="onlineDevices">--</div>
-          <div class="stat-sub" id="onlineDevicesSub">台</div>
+          <div class="stat-label">绑定设备数</div>
+          <div class="stat-value success" id="totalDevices">--</div>
+          <div class="stat-sub" id="totalDevicesSub">台</div>
         </div>
       </div>
       <div class="card">
@@ -206,63 +220,49 @@
       </div>
     `;
 
-    // Load data
-    if (IS_DEMO) {
+    // 加载真实数据
+    const data = await api('/dashboard');
+    if (data) {
+      document.getElementById('todayOrders').textContent = data.todayOrders ?? 0;
+      document.getElementById('todayRevenue').textContent = '¥' + formatYuan(data.todayRevenue);
+      document.getElementById('pendingSettlement').textContent = '¥' + formatYuan(data.pendingSettlement);
+      document.getElementById('weekMatches').textContent = data.weekMatches ?? 0;
+      document.getElementById('weekTraffic').textContent = data.weekTraffic ?? 0;
+      document.getElementById('totalDevices').textContent = data.totalDevices ?? 0;
+
+      drawChart(data.chartData || []);
+    } else {
+      // 降级显示 demo 数据
       fillDashboardDemo();
       drawChart(getDemoChartData());
-    } else {
-      try {
-        const data = await api('/dashboard/summary');
-        if (data) {
-          document.getElementById('todayOrders').textContent = data.todayOrders ?? 0;
-          document.getElementById('todayOrdersSub').textContent = '较昨日 ' + (data.ordersChange || '+0%');
-          document.getElementById('todayRevenue').textContent = '¥' + formatMoney(data.todayRevenue || 0);
-          document.getElementById('todayRevenueSub').textContent = '较昨日 ' + (data.revenueChange || '+0%');
-          document.getElementById('pendingSettlement').textContent = '¥' + formatMoney(data.pendingSettlement || 0);
-          document.getElementById('weekMatches').textContent = data.weekMatches ?? 0;
-          document.getElementById('weekTraffic').textContent = data.weekTraffic ?? 0;
-          document.getElementById('onlineDevices').textContent = data.onlineDevices ?? 0;
-        }
-        drawChart(data && data.chartData ? data.chartData : getDemoChartData());
-      } catch (err) {
-        showToast('数据加载失败', 'error');
-        fillDashboardDemo();
-        drawChart(getDemoChartData());
-      }
     }
   }
 
   function fillDashboardDemo() {
-    document.getElementById('todayOrders').textContent = '47';
-    document.getElementById('todayOrdersSub').textContent = '较昨日 +12%';
-    document.getElementById('todayRevenue').textContent = '¥3,290';
-    document.getElementById('todayRevenueSub').textContent = '较昨日 +8.5%';
-    document.getElementById('pendingSettlement').textContent = '¥18,560';
-    document.getElementById('pendingSettlementSub').textContent = '3个周期待结算';
-    document.getElementById('weekMatches').textContent = '28';
-    document.getElementById('weekMatchesSub').textContent = '场';
-    document.getElementById('weekTraffic').textContent = '312';
-    document.getElementById('weekTrafficSub').textContent = '人次';
-    document.getElementById('onlineDevices').textContent = '8';
-    document.getElementById('onlineDevicesSub').textContent = '/ 10 台';
+    document.getElementById('todayOrders').textContent = '--';
+    document.getElementById('todayRevenue').textContent = '¥--';
+    document.getElementById('pendingSettlement').textContent = '¥--';
+    document.getElementById('weekMatches').textContent = '--';
+    document.getElementById('weekTraffic').textContent = '--';
+    document.getElementById('totalDevices').textContent = '--';
   }
 
   function getDemoChartData() {
     return [
-      { date: '07/12', orders: 32, revenue: 2240 },
-      { date: '07/13', orders: 38, revenue: 2660 },
-      { date: '07/14', orders: 45, revenue: 3150 },
-      { date: '07/15', orders: 41, revenue: 2870 },
-      { date: '07/16', orders: 52, revenue: 3640 },
-      { date: '07/17', orders: 39, revenue: 2730 },
-      { date: '07/18', orders: 47, revenue: 3290 }
+      { date: 'D-6', orders: 32, revenue: 2240 },
+      { date: 'D-5', orders: 38, revenue: 2660 },
+      { date: 'D-4', orders: 45, revenue: 3150 },
+      { date: 'D-3', orders: 41, revenue: 2870 },
+      { date: 'D-2', orders: 52, revenue: 3640 },
+      { date: 'D-1', orders: 39, revenue: 2730 },
+      { date: '今天', orders: 47, revenue: 3290 }
     ];
   }
 
   // ---- Chart ----
   function drawChart(data) {
     const canvas = document.getElementById('chartCanvas');
-    if (!canvas) return;
+    if (!canvas || !data.length) return;
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -278,10 +278,10 @@
     const chartH = H - padding.top - padding.bottom;
 
     const maxVal = Math.max(...data.map(d => d.orders), 10);
-    const barW = chartW / data.length * 0.6;
-    const gap = chartW / data.length * 0.4;
+    const barW = Math.min(chartW / data.length * 0.6, 40);
+    const gap = (chartW - barW * data.length) / (data.length + 1);
 
-    // Y axis labels
+    // Y axis
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.font = '11px -apple-system';
     ctx.textAlign = 'right';
@@ -290,7 +290,6 @@
       const val = Math.round(maxVal * i / steps);
       const y = padding.top + chartH - (chartH * i / steps);
       ctx.fillText(val, padding.left - 8, y + 3);
-      // Grid line
       ctx.strokeStyle = 'rgba(255,255,255,0.05)';
       ctx.beginPath();
       ctx.moveTo(padding.left, y);
@@ -300,18 +299,16 @@
 
     // Bars
     data.forEach((d, i) => {
-      const x = padding.left + (chartW / data.length) * i + gap / 2;
+      const x = padding.left + gap + (barW + gap) * i;
       const barH = (d.orders / maxVal) * chartH;
       const y = padding.top + chartH - barH;
 
-      // Bar gradient
       const grad = ctx.createLinearGradient(0, y, 0, y + barH);
       grad.addColorStop(0, '#FFD700');
       grad.addColorStop(1, 'rgba(255,215,0,0.3)');
       ctx.fillStyle = grad;
 
-      // Rounded bar
-      const r = 4;
+      const r = Math.min(4, barW / 2);
       ctx.beginPath();
       ctx.moveTo(x + r, y);
       ctx.lineTo(x + barW - r, y);
@@ -322,13 +319,11 @@
       ctx.quadraticCurveTo(x, y, x + r, y);
       ctx.fill();
 
-      // Value
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.font = '11px -apple-system';
       ctx.textAlign = 'center';
       ctx.fillText(d.orders, x + barW / 2, y - 6);
 
-      // X label
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
       ctx.fillText(d.date, x + barW / 2, H - padding.bottom + 18);
     });
@@ -358,14 +353,9 @@
             <select id="filterStatus">
               <option value="">全部</option>
               <option value="paid">已支付</option>
-              <option value="settled">已结算</option>
               <option value="refunded">已退款</option>
               <option value="pending">待支付</option>
             </select>
-          </div>
-          <div class="filter-group">
-            <label>搜索</label>
-            <input type="text" id="filterSearch" placeholder="订单号/账号">
           </div>
           <button class="btn btn-gold btn-sm" id="filterBtn">查询</button>
         </div>
@@ -376,8 +366,8 @@
                 <th>订单号</th>
                 <th>时间</th>
                 <th>付费账号</th>
-                <th>金额</th>
-                <th>70%分成</th>
+                <th>金额(元)</th>
+                <th>70%分成(元)</th>
                 <th>赛事编号</th>
                 <th>设备SN</th>
                 <th>状态</th>
@@ -392,15 +382,16 @@
       </div>
     `;
 
-    document.getElementById('filterBtn').addEventListener('click', () => {
+    document.getElementById('filterBtn')?.addEventListener('click', () => {
       ordersPage = 1;
       loadOrders();
     });
-
-    document.getElementById('exportCSV').addEventListener('click', exportOrdersCSV);
+    document.getElementById('exportCSV')?.addEventListener('click', exportOrdersCSV);
 
     loadOrders();
   }
+
+  let ordersCache = [];
 
   async function loadOrders() {
     const tbody = document.getElementById('ordersTbody');
@@ -409,35 +400,19 @@
     const dateStart = document.getElementById('filterDateStart')?.value || '';
     const dateEnd = document.getElementById('filterDateEnd')?.value || '';
     const status = document.getElementById('filterStatus')?.value || '';
-    const search = document.getElementById('filterSearch')?.value || '';
 
-    if (IS_DEMO) {
-      ordersData = generateDemoOrders();
-      if (status) ordersData = ordersData.filter(o => o.status === status);
-      if (search) ordersData = ordersData.filter(o => o.orderNo.includes(search) || o.account.includes(search));
-      ordersTotal = ordersData.length;
+    const params = new URLSearchParams({ page: ordersPage, pageSize: PAGE_SIZE });
+    if (dateStart) params.set('dateStart', dateStart);
+    if (dateEnd) params.set('dateEnd', dateEnd);
+    if (status) params.set('status', status);
+
+    const data = await api('/orders?' + params.toString());
+    if (data && data.list) {
+      ordersCache = data.list;
+      ordersTotal = data.total || 0;
       renderOrdersTable();
-      return;
-    }
-
-    try {
-      const params = new URLSearchParams({
-        page: ordersPage,
-        pageSize: PAGE_SIZE
-      });
-      if (dateStart) params.set('dateStart', dateStart);
-      if (dateEnd) params.set('dateEnd', dateEnd);
-      if (status) params.set('status', status);
-      if (search) params.set('search', search);
-
-      const data = await api('/orders?' + params.toString());
-      if (data) {
-        ordersData = data.list || data.data || [];
-        ordersTotal = data.total || 0;
-        renderOrdersTable();
-      }
-    } catch (err) {
-      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">加载失败</div></td></tr>';
+    } else {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">暂无订单数据</div></td></tr>';
     }
   }
 
@@ -445,31 +420,27 @@
     const tbody = document.getElementById('ordersTbody');
     if (!tbody) return;
 
-    if (!ordersData.length) {
+    if (!ordersCache.length) {
       tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><p>暂无订单数据</p></div></td></tr>';
       renderOrdersPagination();
       return;
     }
 
-    const start = (ordersPage - 1) * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    const pageData = ordersData.slice(start, end);
-
     const statusMap = {
       paid: { label: '已支付', class: 'badge-success' },
-      settled: { label: '已结算', class: 'badge-info' },
       refunded: { label: '已退款', class: 'badge-danger' },
-      pending: { label: '待支付', class: 'badge-warning' }
+      pending: { label: '待支付', class: 'badge-warning' },
+      cancelled: { label: '已取消', class: 'badge-muted' },
     };
 
-    tbody.innerHTML = pageData.map(o => {
+    tbody.innerHTML = ordersCache.map(o => {
       const s = statusMap[o.status] || { label: o.status, class: 'badge-muted' };
       return `<tr>
-        <td>${o.orderNo}</td>
-        <td>${o.time}</td>
-        <td>${o.account}</td>
-        <td>¥${formatMoney(o.amount)}</td>
-        <td>¥${formatMoney(o.amount * 0.7)}</td>
+        <td title="${o.orderNo}">${o.orderNo ? o.orderNo.substring(0, 20) : '--'}</td>
+        <td>${o.time || '--'}</td>
+        <td>${o.account || '--'}</td>
+        <td>¥${toYuan(o.amount)}</td>
+        <td>¥${toYuan(o.venueIncome)}</td>
         <td>${o.matchId || '--'}</td>
         <td>${o.deviceSN || '--'}</td>
         <td><span class="badge ${s.class}">${s.label}</span></td>
@@ -483,7 +454,7 @@
     const el = document.getElementById('ordersPagination');
     if (!el) return;
 
-    const totalPages = Math.ceil(ordersTotal / PAGE_SIZE);
+    const totalPages = Math.max(1, Math.ceil(ordersTotal / PAGE_SIZE));
     if (totalPages <= 1) {
       el.innerHTML = `<span>共 ${ordersTotal} 条</span>`;
       return;
@@ -492,10 +463,9 @@
     let buttons = '';
     buttons += `<button ${ordersPage <= 1 ? 'disabled' : ''} onclick="window._pnApp.goOrdersPage(${ordersPage - 1})">上一页</button>`;
 
-    const maxButtons = 5;
     let startP = Math.max(1, ordersPage - 2);
-    let endP = Math.min(totalPages, startP + maxButtons - 1);
-    startP = Math.max(1, endP - maxButtons + 1);
+    let endP = Math.min(totalPages, startP + 4);
+    startP = Math.max(1, endP - 4);
 
     for (let i = startP; i <= endP; i++) {
       buttons += `<button class="${i === ordersPage ? 'active' : ''}" onclick="window._pnApp.goOrdersPage(${i})">${i}</button>`;
@@ -508,20 +478,20 @@
 
   function goOrdersPage(page) {
     ordersPage = page;
-    if (IS_DEMO) {
-      renderOrdersTable();
-    } else {
-      loadOrders();
-    }
+    loadOrders();
   }
 
   function exportOrdersCSV() {
-    let csv = '\uFEFF订单号,时间,付费账号,金额,70%分成,赛事编号,设备SN,状态\n';
-    const statusLabel = { paid: '已支付', settled: '已结算', refunded: '已退款', pending: '待支付' };
+    if (!ordersCache.length) {
+      showToast('暂无数据可导出', 'error');
+      return;
+    }
 
-    const data = IS_DEMO ? ordersData : ordersData;
-    data.forEach(o => {
-      csv += `${o.orderNo},${o.time},${o.account},${o.amount},${(o.amount * 0.7).toFixed(2)},${o.matchId || ''},${o.deviceSN || ''},${statusLabel[o.status] || o.status}\n`;
+    let csv = '\uFEFF订单号,时间,付费账号,金额(元),70%分成(元),赛事编号,设备SN,状态\n';
+    const statusLabel = { paid: '已支付', refunded: '已退款', pending: '待支付', cancelled: '已取消' };
+
+    ordersCache.forEach(o => {
+      csv += `${o.orderNo},${o.time},${o.account},${toYuan(o.amount)},${toYuan(o.venueIncome || o.amount * 0.7)},${o.matchId || ''},${o.deviceSN || ''},${statusLabel[o.status] || o.status}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -534,31 +504,11 @@
     showToast('CSV 导出成功', 'success');
   }
 
-  function generateDemoOrders() {
-    const orders = [];
-    const statuses = ['paid', 'paid', 'paid', 'settled', 'settled', 'pending', 'refunded'];
-    const accounts = ['player_001', 'player_002', 'poker_king', 'allin_master', 'bluff_pro', 'chip_leader', 'river_rat', 'slow_play'];
-    for (let i = 0; i < 87; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - Math.floor(Math.random() * 7));
-      const time = d.toISOString().slice(0, 16).replace('T', ' ');
-      const amount = [30, 50, 50, 100, 100, 100, 200][Math.floor(Math.random() * 7)];
-      orders.push({
-        orderNo: 'PN' + String(20240718000000 + i * 137),
-        time,
-        account: accounts[Math.floor(Math.random() * accounts.length)],
-        amount,
-        matchId: 'M' + String(1000 + Math.floor(Math.random() * 50)),
-        deviceSN: 'SN-' + String(1000 + Math.floor(Math.random() * 10)),
-        status: statuses[Math.floor(Math.random() * statuses.length)]
-      });
-    }
-    return orders.sort((a, b) => b.time.localeCompare(a.time));
-  }
-
   // ============================================
   // Devices
   // ============================================
+  let devicesList = [];
+
   async function renderDevices(container) {
     container.innerHTML = `
       <div class="card">
@@ -571,7 +521,6 @@
             <thead>
               <tr>
                 <th>设备SN</th>
-                <th>绑定场馆</th>
                 <th>桌号</th>
                 <th>状态</th>
                 <th>绑定时间</th>
@@ -579,28 +528,22 @@
               </tr>
             </thead>
             <tbody id="devicesTbody">
-              <tr><td colspan="6"><div class="loading">加载中</div></td></tr>
+              <tr><td colspan="5"><div class="loading">加载中</div></td></tr>
             </tbody>
           </table>
         </div>
       </div>
     `;
 
-    document.getElementById('bindDeviceBtn').addEventListener('click', showBindDeviceModal);
+    document.getElementById('bindDeviceBtn')?.addEventListener('click', showBindDeviceModal);
 
-    if (IS_DEMO) {
-      devicesData = generateDemoDevices();
+    const data = await api('/devices');
+    if (data && data.list) {
+      devicesList = data.list;
       renderDevicesTable();
     } else {
-      try {
-        const data = await api('/devices');
-        if (data) {
-          devicesData = data.list || data.data || [];
-          renderDevicesTable();
-        }
-      } catch (err) {
-        showToast('设备列表加载失败', 'error');
-      }
+      document.getElementById('devicesTbody').innerHTML =
+        '<tr><td colspan="5"><div class="empty-state"><p>暂无绑定设备</p></div></td></tr>';
     }
   }
 
@@ -608,22 +551,24 @@
     const tbody = document.getElementById('devicesTbody');
     if (!tbody) return;
 
-    if (!devicesData.length) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>暂无绑定设备</p></div></td></tr>';
+    if (!devicesList.length) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>暂无绑定设备</p></div></td></tr>';
       return;
     }
 
     const statusMap = {
+      idle: { label: '空闲', class: 'badge-info' },
+      waiting: { label: '等待中', class: 'badge-warning' },
+      playing: { label: '对局中', class: 'badge-success' },
+      finished: { label: '已结束', class: 'badge-muted' },
       online: { label: '在线', class: 'badge-success' },
       offline: { label: '离线', class: 'badge-muted' },
-      maintenance: { label: '维护中', class: 'badge-warning' }
     };
 
-    tbody.innerHTML = devicesData.map(d => {
-      const s = statusMap[d.status] || { label: d.status, class: 'badge-muted' };
+    tbody.innerHTML = devicesList.map(d => {
+      const s = statusMap[d.status] || { label: d.status || '未知', class: 'badge-muted' };
       return `<tr>
-        <td>${d.sn}</td>
-        <td>${d.venue || '--'}</td>
+        <td><code>${d.sn}</code></td>
         <td>${d.tableNo || '--'}</td>
         <td><span class="badge ${s.class}">${s.label}</span></td>
         <td>${d.bindTime || '--'}</td>
@@ -633,100 +578,70 @@
   }
 
   function showBindDeviceModal() {
-    openModal('绑定新设备', `
-      <div class="form-group">
+    openModal('绑定新设备',
+      `<div class="form-group">
         <label>设备 SN</label>
         <input type="text" id="bindSN" placeholder="请输入设备序列号">
       </div>
       <div class="form-group">
-        <label>桌号</label>
-        <input type="text" id="bindTableNo" placeholder="请输入桌号（如：A1）">
-      </div>
-    `, `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">取消</button><button class="btn btn-gold btn-sm" onclick="window._pnApp.confirmBindDevice()">确认绑定</button>`);
+        <label>桌号标签</label>
+        <input type="text" id="bindTableNo" placeholder="如：吧台1号 / A1">
+      </div>`,
+      `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">取消</button>
+       <button class="btn btn-gold btn-sm" onclick="window._pnApp.confirmBindDevice()">确认绑定</button>`
+    );
   }
 
   async function confirmBindDevice() {
-    const sn = document.getElementById('bindSN').value.trim();
-    const tableNo = document.getElementById('bindTableNo').value.trim();
+    const sn = document.getElementById('bindSN')?.value.trim();
+    const tableLabel = document.getElementById('bindTableNo')?.value.trim();
 
-    if (!sn || !tableNo) {
-      showToast('请填写完整信息', 'error');
+    if (!sn) {
+      showToast('请输入设备序列号', 'error');
       return;
     }
 
-    if (IS_DEMO) {
-      devicesData.unshift({
-        sn,
-        venue: 'Demo场馆',
-        tableNo,
-        status: 'online',
-        bindTime: new Date().toISOString().slice(0, 19).replace('T', ' ')
-      });
-      renderDevicesTable();
+    const data = await api('/devices/bind', {
+      method: 'POST',
+      body: JSON.stringify({ deviceSn: sn, tableLabel: tableLabel || null })
+    });
+
+    if (data && data.success) {
       closeModal();
       showToast('设备绑定成功', 'success');
-      return;
-    }
-
-    try {
-      const data = await api('/devices/bind', {
-        method: 'POST',
-        body: JSON.stringify({ sn, tableNo })
-      });
-      if (data && !data.error) {
-        closeModal();
-        showToast('设备绑定成功', 'success');
-        renderDevices(null);
-      } else {
-        showToast(data.message || '绑定失败', 'error');
+      // 重新加载设备列表
+      const newData = await api('/devices');
+      if (newData && newData.list) {
+        devicesList = newData.list;
+        renderDevicesTable();
       }
-    } catch (err) {
-      showToast('网络错误', 'error');
+    } else {
+      showToast(data?.error || '绑定失败', 'error');
     }
   }
 
   async function unbindDevice(sn) {
     if (!confirm(`确定解绑设备 ${sn} 吗？`)) return;
 
-    if (IS_DEMO) {
-      devicesData = devicesData.filter(d => d.sn !== sn);
-      renderDevicesTable();
+    const data = await api('/devices/unbind', {
+      method: 'POST',
+      body: JSON.stringify({ sn })
+    });
+
+    if (data && data.success) {
       showToast('设备已解绑', 'success');
-      return;
+      devicesList = devicesList.filter(d => d.sn !== sn);
+      renderDevicesTable();
+    } else {
+      showToast(data?.error || '解绑失败', 'error');
     }
-
-    try {
-      const data = await api('/devices/unbind', {
-        method: 'POST',
-        body: JSON.stringify({ sn })
-      });
-      if (data && !data.error) {
-        showToast('设备已解绑', 'success');
-        renderDevices(null);
-      } else {
-        showToast(data.message || '解绑失败', 'error');
-      }
-    } catch (err) {
-      showToast('网络错误', 'error');
-    }
-  }
-
-  function generateDemoDevices() {
-    return [
-      { sn: 'SN-1001', venue: '旗舰店', tableNo: 'A1', status: 'online', bindTime: '2024-06-01 10:30:00' },
-      { sn: 'SN-1002', venue: '旗舰店', tableNo: 'A2', status: 'online', bindTime: '2024-06-01 10:32:00' },
-      { sn: 'SN-1003', venue: '旗舰店', tableNo: 'B1', status: 'online', bindTime: '2024-06-02 14:20:00' },
-      { sn: 'SN-1004', venue: '旗舰店', tableNo: 'B2', status: 'offline', bindTime: '2024-06-02 14:25:00' },
-      { sn: 'SN-1005', venue: '旗舰店', tableNo: 'C1', status: 'online', bindTime: '2024-06-05 09:15:00' },
-      { sn: 'SN-1006', venue: '旗舰店', tableNo: 'C2', status: 'maintenance', bindTime: '2024-06-05 09:20:00' },
-      { sn: 'SN-1007', venue: '旗舰店', tableNo: 'D1', status: 'online', bindTime: '2024-06-10 16:00:00' },
-      { sn: 'SN-1008', venue: '旗舰店', tableNo: 'D2', status: 'online', bindTime: '2024-06-10 16:05:00' }
-    ];
   }
 
   // ============================================
   // Settlements
   // ============================================
+  let settlementsList = [];
+
   async function renderSettlements(container) {
     container.innerHTML = `
       <div class="card">
@@ -740,8 +655,8 @@
               <tr>
                 <th>结算周期</th>
                 <th>订单数</th>
-                <th>总额</th>
-                <th>70%分成</th>
+                <th>总额(元)</th>
+                <th>70%分成(元)</th>
                 <th>状态</th>
                 <th>操作</th>
               </tr>
@@ -754,21 +669,15 @@
       </div>
     `;
 
-    document.getElementById('withdrawBtn').addEventListener('click', showWithdrawModal);
+    document.getElementById('withdrawBtn')?.addEventListener('click', showWithdrawModal);
 
-    if (IS_DEMO) {
-      settlementsData = generateDemoSettlements();
+    const data = await api('/settlements');
+    if (data && data.list) {
+      settlementsList = data.list;
       renderSettlementsTable();
     } else {
-      try {
-        const data = await api('/settlements');
-        if (data) {
-          settlementsData = data.list || data.data || [];
-          renderSettlementsTable();
-        }
-      } catch (err) {
-        showToast('结算数据加载失败', 'error');
-      }
+      document.getElementById('settlementsTbody').innerHTML =
+        '<tr><td colspan="6"><div class="empty-state"><p>暂无结算记录</p></div></td></tr>';
     }
   }
 
@@ -776,7 +685,7 @@
     const tbody = document.getElementById('settlementsTbody');
     if (!tbody) return;
 
-    if (!settlementsData.length) {
+    if (!settlementsList.length) {
       tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>暂无结算记录</p></div></td></tr>';
       return;
     }
@@ -784,31 +693,38 @@
     const statusMap = {
       pending: { label: '待结算', class: 'badge-warning' },
       processing: { label: '处理中', class: 'badge-info' },
-      completed: { label: '已结算', class: 'badge-success' },
-      failed: { label: '已失败', class: 'badge-danger' }
+      confirmed: { label: '已确认', class: 'badge-info' },
+      paid: { label: '已结算', class: 'badge-success' },
+      completed: { label: '已完成', class: 'badge-success' },
+      failed: { label: '失败', class: 'badge-danger' },
     };
 
-    tbody.innerHTML = settlementsData.map(s => {
+    tbody.innerHTML = settlementsList.map(s => {
       const st = statusMap[s.status] || { label: s.status, class: 'badge-muted' };
       return `<tr>
         <td>${s.period}</td>
         <td>${s.orderCount}</td>
-        <td>¥${formatMoney(s.totalAmount)}</td>
-        <td>¥${formatMoney(s.merchantShare)}</td>
+        <td>¥${toYuan(s.totalAmount)}</td>
+        <td>¥${toYuan(s.merchantShare)}</td>
         <td><span class="badge ${st.class}">${st.label}</span></td>
-        <td>${s.voucherUrl ? `<button class="btn btn-outline btn-sm" onclick="window._pnApp.viewVoucher('${s.voucherUrl}')">查看凭证</button>` : '--'}</td>
+        <td>${s.voucherUrl ? `<button class="btn btn-outline btn-sm" onclick="window._pnApp.viewVoucher('${s.voucherUrl}')">查看凭证</button>` : s.status === 'pending' ? `<button class="btn btn-gold btn-sm" onclick="window._pnApp.withdrawSettlement('${s.id}')">提现</button>` : '--'}</td>
       </tr>`;
     }).join('');
   }
 
   function showWithdrawModal() {
-    const pending = settlementsData.filter(s => s.status === 'pending');
+    const pending = settlementsList.filter(s => s.status === 'pending');
     const total = pending.reduce((sum, s) => sum + s.merchantShare, 0);
 
-    openModal('申请提现', `
-      <div style="margin-bottom: 16px;">
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">可提现金额</div>
-        <div style="font-size: 28px; font-weight: 700; color: var(--gold);">¥${formatMoney(total)}</div>
+    if (pending.length === 0) {
+      showToast('没有待结算的周期', 'error');
+      return;
+    }
+
+    openModal('申请提现',
+      `<div style="margin-bottom: 16px;">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">可提现金额 (${pending.length} 个待结算周期)</div>
+        <div style="font-size: 28px; font-weight: 700; color: var(--gold);">¥${toYuan(total)}</div>
       </div>
       <div class="form-group">
         <label>提现至（银行卡/支付宝）</label>
@@ -817,103 +733,108 @@
       <div class="form-group">
         <label>备注</label>
         <input type="text" id="withdrawNote" placeholder="选填">
-      </div>
-    `, `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">取消</button><button class="btn btn-gold btn-sm" onclick="window._pnApp.confirmWithdraw()">提交申请</button>`);
+      </div>`,
+      `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">取消</button>
+       <button class="btn btn-gold btn-sm" id="confirmWithdrawBtn">提交申请</button>`
+    );
+
+    document.getElementById('confirmWithdrawBtn')?.addEventListener('click', async () => {
+      const target = document.getElementById('withdrawTarget')?.value.trim();
+      if (!target) {
+        showToast('请输入收款账号', 'error');
+        return;
+      }
+
+      const note = document.getElementById('withdrawNote')?.value || '';
+
+      // 逐个提交待结算周期的提现申请
+      let success = 0;
+      for (const s of pending) {
+        const data = await api(`/settlements/${s.id}/withdraw`, {
+          method: 'POST',
+          body: JSON.stringify({ target, note })
+        });
+        if (data && data.success) success++;
+      }
+
+      closeModal();
+      if (success > 0) {
+        showToast(`已提交 ${success} 个周期的提现申请`, 'success');
+        // 重新加载
+        const newData = await api('/settlements');
+        if (newData && newData.list) {
+          settlementsList = newData.list;
+          renderSettlementsTable();
+        }
+      } else {
+        showToast('提现申请失败', 'error');
+      }
+    });
   }
 
-  async function confirmWithdraw() {
-    const target = document.getElementById('withdrawTarget').value.trim();
-    if (!target) {
-      showToast('请输入收款账号', 'error');
-      return;
-    }
-
-    if (IS_DEMO) {
-      settlementsData.forEach(s => {
-        if (s.status === 'pending') s.status = 'processing';
-      });
-      renderSettlementsTable();
-      closeModal();
+  async function withdrawSettlement(id) {
+    const data = await api(`/settlements/${id}/withdraw`, {
+      method: 'POST',
+      body: JSON.stringify({ target: '商户银行卡', note: '' })
+    });
+    if (data && data.success) {
       showToast('提现申请已提交', 'success');
-      return;
-    }
-
-    try {
-      const data = await api('/settlements/withdraw', {
-        method: 'POST',
-        body: JSON.stringify({ target, note: document.getElementById('withdrawNote').value })
-      });
-      if (data && !data.error) {
-        closeModal();
-        showToast('提现申请已提交', 'success');
-        renderSettlements(null);
-      } else {
-        showToast(data.message || '申请失败', 'error');
+      const newData = await api('/settlements');
+      if (newData && newData.list) {
+        settlementsList = newData.list;
+        renderSettlementsTable();
       }
-    } catch (err) {
-      showToast('网络错误', 'error');
+    } else {
+      showToast(data?.error || '提现失败', 'error');
     }
   }
 
   function viewVoucher(url) {
-    openModal('转账凭证', `<div style="text-align:center;"><img src="${url}" style="max-width:100%;border-radius:8px;" alt="凭证"></div>`, `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">关闭</button>`);
-  }
-
-  function generateDemoSettlements() {
-    return [
-      { period: '2024-W28', orderCount: 47, totalAmount: 3290, merchantShare: 2303, status: 'pending', voucherUrl: null },
-      { period: '2024-W27', orderCount: 52, totalAmount: 3640, merchantShare: 2548, status: 'processing', voucherUrl: null },
-      { period: '2024-W26', orderCount: 38, totalAmount: 2660, merchantShare: 1862, status: 'completed', voucherUrl: 'https://via.placeholder.com/400x300/1a1a1a/FFD700?text=Voucher+W26' },
-      { period: '2024-W25', orderCount: 45, totalAmount: 3150, merchantShare: 2205, status: 'completed', voucherUrl: 'https://via.placeholder.com/400x300/1a1a1a/FFD700?text=Voucher+W25' },
-      { period: '2024-W24', orderCount: 41, totalAmount: 2870, merchantShare: 2009, status: 'completed', voucherUrl: null }
-    ];
+    openModal('转账凭证',
+      `<div style="text-align:center;"><img src="${url}" style="max-width:100%;border-radius:8px;" alt="凭证"></div>`,
+      `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">关闭</button>`
+    );
   }
 
   // ============================================
   // Refunds
   // ============================================
+  let refundsData = [];
+
   async function renderRefunds(container) {
     container.innerHTML = `
       <div class="card">
         <div class="card-title">
-          <span>退款列表</span>
+          <span>退款管理</span>
           <button class="btn btn-gold btn-sm" id="refundBtn">发起退款</button>
         </div>
         <div class="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>退款单号</th>
-                <th>原订单号</th>
-                <th>金额</th>
+                <th>订单号</th>
+                <th>金额(元)</th>
                 <th>原因</th>
-                <th>申请时间</th>
+                <th>发起人</th>
+                <th>退款时间</th>
                 <th>状态</th>
               </tr>
             </thead>
             <tbody id="refundsTbody">
-              <tr><td colspan="6"><div class="loading">加载中</div></td></tr>
+              <tr><td colspan="6"><div class="empty-state"><p>退款数据来源于订单列表中的已退款订单</p></div></td></tr>
             </tbody>
           </table>
         </div>
       </div>
     `;
 
-    document.getElementById('refundBtn').addEventListener('click', showRefundModal);
+    document.getElementById('refundBtn')?.addEventListener('click', showRefundModal);
 
-    if (IS_DEMO) {
-      refundsData = generateDemoRefunds();
+    // 从订单列表加载已退款的订单
+    const data = await api('/orders?status=refunded&pageSize=50');
+    if (data && data.list) {
+      refundsData = data.list;
       renderRefundsTable();
-    } else {
-      try {
-        const data = await api('/refunds');
-        if (data) {
-          refundsData = data.list || data.data || [];
-          renderRefundsTable();
-        }
-      } catch (err) {
-        showToast('退款列表加载失败', 'error');
-      }
     }
   }
 
@@ -926,92 +847,73 @@
       return;
     }
 
-    const statusMap = {
-      pending: { label: '待处理', class: 'badge-warning' },
-      processing: { label: '处理中', class: 'badge-info' },
-      completed: { label: '已退款', class: 'badge-success' },
-      rejected: { label: '已拒绝', class: 'badge-danger' }
-    };
-
-    tbody.innerHTML = refundsData.map(r => {
-      const s = statusMap[r.status] || { label: r.status, class: 'badge-muted' };
-      return `<tr>
-        <td>${r.refundNo}</td>
-        <td>${r.orderNo}</td>
-        <td>¥${formatMoney(r.amount)}</td>
-        <td>${r.reason}</td>
-        <td>${r.applyTime}</td>
-        <td><span class="badge ${s.class}">${s.label}</span></td>
-      </tr>`;
-    }).join('');
+    tbody.innerHTML = refundsData.map(r => `<tr>
+      <td>${r.orderNo || '--'}</td>
+      <td>¥${toYuan(r.amount)}</td>
+      <td>${r.refundReason || '--'}</td>
+      <td>${r.refundInitiatedBy === 'admin' ? '平台' : r.refundInitiatedBy === 'merchant' ? '商户' : r.refundInitiatedBy || '--'}</td>
+      <td>${r.time || '--'}</td>
+      <td><span class="badge badge-danger">已退款</span></td>
+    </tr>`).join('');
   }
 
   function showRefundModal() {
-    openModal('发起退款', `
-      <div class="form-group">
-        <label>订单号</label>
-        <input type="text" id="refundOrderNo" placeholder="请输入要退款的订单号">
+    openModal('发起退款',
+      `<div class="form-group">
+        <label>订单号 (UUID)</label>
+        <input type="text" id="refundOrderNo" placeholder="请输入订单 ID (UUID)">
       </div>
       <div class="form-group">
         <label>退款原因</label>
         <input type="text" id="refundReason" placeholder="请输入退款原因">
-      </div>
-    `, `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">取消</button><button class="btn btn-gold btn-sm" onclick="window._pnApp.confirmRefund()">提交退款</button>`);
-  }
+      </div>`,
+      `<button class="btn btn-outline btn-sm" onclick="window._pnApp.closeModal()">取消</button>
+       <button class="btn btn-gold btn-sm" id="confirmRefundBtn">提交退款</button>`
+    );
 
-  async function confirmRefund() {
-    const orderNo = document.getElementById('refundOrderNo').value.trim();
-    const reason = document.getElementById('refundReason').value.trim();
+    document.getElementById('confirmRefundBtn')?.addEventListener('click', async () => {
+      const orderId = document.getElementById('refundOrderNo')?.value.trim();
+      const reason = document.getElementById('refundReason')?.value.trim();
 
-    if (!orderNo || !reason) {
-      showToast('请填写完整信息', 'error');
-      return;
-    }
-
-    if (IS_DEMO) {
-      refundsData.unshift({
-        refundNo: 'RF' + Date.now(),
-        orderNo,
-        amount: 50,
-        reason,
-        applyTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        status: 'pending'
-      });
-      renderRefundsTable();
-      closeModal();
-      showToast('退款申请已提交', 'success');
-      return;
-    }
-
-    try {
-      const data = await api('/refunds/apply', {
-        method: 'POST',
-        body: JSON.stringify({ orderNo, reason })
-      });
-      if (data && !data.error) {
-        closeModal();
-        showToast('退款申请已提交', 'success');
-        renderRefunds(null);
-      } else {
-        showToast(data.message || '退款失败', 'error');
+      if (!orderId || !reason) {
+        showToast('请填写完整信息', 'error');
+        return;
       }
-    } catch (err) {
-      showToast('网络错误', 'error');
-    }
-  }
 
-  function generateDemoRefunds() {
-    return [
-      { refundNo: 'RF20240718001', orderNo: 'PN20240718000137', amount: 50, reason: '设备故障', applyTime: '2024-07-18 09:30:00', status: 'pending' },
-      { refundNo: 'RF20240717002', orderNo: 'PN20240717000274', amount: 100, reason: '赛事异常中断', applyTime: '2024-07-17 15:20:00', status: 'completed' },
-      { refundNo: 'RF20240716003', orderNo: 'PN20240716000411', amount: 30, reason: '用户投诉', applyTime: '2024-07-16 18:45:00', status: 'completed' },
-      { refundNo: 'RF20240715004', orderNo: 'PN20240715000548', amount: 50, reason: '误操作', applyTime: '2024-07-15 11:10:00', status: 'rejected' }
-    ];
+      const data = await api('/refund', {
+        method: 'POST',
+        body: JSON.stringify({ orderId, reason })
+      });
+
+      if (data && data.success) {
+        closeModal();
+        showToast('退款成功', 'success');
+        // 重新加载退款列表
+        const newData = await api('/orders?status=refunded&pageSize=50');
+        if (newData && newData.list) {
+          refundsData = newData.list;
+          renderRefundsTable();
+        }
+      } else {
+        showToast(data?.error || '退款失败', 'error');
+      }
+    });
   }
 
   // ---- Utils ----
+  function formatYuan(cents) {
+    return Number(cents || 0).toLocaleString('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  function toYuan(cents) {
+    return (cents / 100).toFixed(2);
+  }
+
   function formatMoney(n) {
-    return Number(n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return n;
   }
 
   // ---- Expose for inline onclick ----
@@ -1020,11 +922,14 @@
     closeModal,
     confirmBindDevice,
     unbindDevice,
-    confirmWithdraw,
+    withdrawSettlement,
     viewVoucher,
-    confirmRefund
   };
 
   // ---- Start ----
-  init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();

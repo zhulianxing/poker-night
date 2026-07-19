@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Night · 运营后台</title>
+  <link rel="stylesheet" href="../merchant-dashboard/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠️</text></svg>">
+</head>
+<body>
+
+<button class="mobile-toggle" id="mobileToggle">☰</button>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-icon">⚙</div>
+      <span>POKER NIGHT</span>
+    </div>
+    <nav class="nav-menu" id="navMenu">
+      <div class="nav-item active" data-route="venues">🏪 场馆管理</div>
+      <div class="nav-item" data-route="orders">📋 全局订单</div>
+      <div class="nav-item" data-route="devices">📱 设备绑定</div>
+      <div class="nav-item" data-route="refunds">↩️ 退款管理</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="merchant-info" id="adminInfo">--</div>
+      <button class="btn-logout" id="logoutBtn">退出登录</button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-title" id="pageTitle">场馆管理</div>
+      <div class="topbar-right"><span id="currentTime"></span></div>
+    </header>
+    <div class="content-area" id="contentArea">
+      <div class="loading">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  const API_BASE = '/merchant/api/v1/admin';
+  let currentRoute = 'venues';
+
+  function init() {
+    const token = localStorage.getItem('pn_admin_token');
+    if (!token) { window.location.href = 'admin-login.html'; return; }
+
+    const info = JSON.parse(localStorage.getItem('pn_admin_info') || '{}');
+    document.getElementById('adminInfo').textContent = info.username || info.email || '管理员';
+    updateClock();
+    setInterval(updateClock, 60000);
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => navigateTo(item.dataset.route));
+    });
+
+    document.getElementById('mobileToggle').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    navigateTo('venues');
+  }
+
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent =
+      `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  }
+
+  function navigateTo(route) {
+    currentRoute = route;
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.route === route));
+    document.getElementById('sidebar').classList.remove('open');
+
+    const titles = { venues: '场馆管理', orders: '全局订单', devices: '设备绑定', refunds: '退款管理' };
+    document.getElementById('pageTitle').textContent = titles[route] || '场馆管理';
+
+    const content = document.getElementById('contentArea');
+    content.innerHTML = '<div class="loading">加载中</div>';
+
+    switch (route) {
+      case 'venues': renderVenues(content); break;
+      case 'orders': renderOrders(content); break;
+      case 'devices': renderDevices(content); break;
+      case 'refunds': renderRefunds(content); break;
+    }
+  }
+
+  async function api(path, options) {
+    const token = localStorage.getItem('pn_admin_token');
+    const opts = options || {};
+    opts.headers = opts.headers || {};
+    opts.headers['Authorization'] = 'Bearer ' + token;
+    if (opts.body && !opts.headers['Content-Type']) opts.headers['Content-Type'] = 'application/json';
+    try {
+      const res = await fetch(API_BASE + path, opts);
+      if (res.status === 401) {
+        showToast('登录已过期', 'error');
+        setTimeout(() => { localStorage.removeItem('pn_admin_token'); window.location.href = 'admin-login.html'; }, 1500);
+        return null;
+      }
+      return res.json();
+    } catch (err) {
+      console.error('API error:', err);
+      return null;
+    }
+  }
+
+  function showToast(msg, type) {
+    const c = document.getElementById('toastContainer');
+    if (!c) return;
+    const t = document.createElement('div');
+    t.className = 'toast ' + (type || '');
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+  function openModal(title, bodyHTML, actionsHTML) {
+    const m = document.getElementById('modalContent');
+    m.innerHTML = `<div class="modal-title">${title}</div>${bodyHTML}<div class="modal-actions">${actionsHTML || ''}</div>`;
+    document.getElementById('modalOverlay').classList.add('show');
+  }
+  function logout() {
+    localStorage.removeItem('pn_admin_token');
+    localStorage.removeItem('pn_admin_info');
+    window.location.href = 'admin-login.html';
+  }
+
+  // ============================================
+  // Venues
+  // ============================================
+  async function renderVenues(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-title">
+          <span>场馆列表</span>
+          <button class="btn btn-gold btn-sm" id="createVenueBtn">+ 新建场馆</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>名称</th><th>联系人</th><th>电话</th><th>邮箱</th><th>地址</th><th>状态</th><th>创建时间</th></tr>
+            </thead>
+            <tbody id="venuesTbody"><tr><td colspan="7"><div class="loading">加载中</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+
+    document.getElementById('createVenueBtn').addEventListener('click', showCreateVenueModal);
+
+    const data = await api('/venues');
+    if (data && data.list) {
+      document.getElementById('venuesTbody').innerHTML = data.list.map(v => `
+        <tr>
+          <td><strong>${v.name}</strong></td>
+          <td>${v.contact || '--'}</td>
+          <td>${v.phone || '--'}</td>
+          <td>${v.email || '--'}</td>
+          <td>${v.address || '--'}</td>
+          <td><span class="badge ${v.status === 'active' ? 'badge-success' : 'badge-muted'}">${v.status === 'active' ? '正常' : v.status}</span></td>
+          <td>${v.createdAt || '--'}</td>
+        </tr>`).join('');
+    }
+  }
+
+  function showCreateVenueModal() {
+    openModal('新建场馆',
+      `<div class="form-group"><label>场馆名称 *</label><input type="text" id="vName" placeholder="如：首尔旗舰店"></div>
+       <div class="form-group"><label>地址</label><input type="text" id="vAddress" placeholder="选填"></div>
+       <div class="form-group"><label>联系人</label><input type="text" id="vContact" placeholder="选填"></div>
+       <div class="form-group"><label>电话</label><input type="text" id="vPhone" placeholder="选填"></div>
+       <div class="form-group"><label>邮箱</label><input type="email" id="vEmail" placeholder="用于商户登录"></div>`,
+      `<button class="btn btn-outline btn-sm" onclick="window._adminApp.closeModal()">取消</button>
+       <button class="btn btn-gold btn-sm" onclick="window._adminApp.createVenue()">创建</button>`
+    );
+  }
+
+  async function createVenue() {
+    const name = document.getElementById('vName').value.trim();
+    if (!name) { showToast('请输入场馆名称', 'error'); return; }
+    const data = await api('/venues', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        address: document.getElementById('vAddress').value,
+        contact: document.getElementById('vContact').value,
+        phone: document.getElementById('vPhone').value,
+        email: document.getElementById('vEmail').value
+      })
+    });
+    if (data && data.success) {
+      closeModal();
+      showToast(`场馆创建成功！默认密码: ${data.defaultPassword}`, 'success');
+      navigateTo('venues');
+    } else {
+      showToast(data?.error || '创建失败', 'error');
+    }
+  }
+
+  // ============================================
+  // Orders (Global)
+  // ============================================
+  let adminOrders = [];
+  async function renderOrders(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-title"><span>全局订单</span></div>
+        <div class="filters">
+          <div class="filter-group"><label>开始日期</label><input type="date" id="aDateStart"></div>
+          <div class="filter-group"><label>结束日期</label><input type="date" id="aDateEnd"></div>
+          <div class="filter-group"><label>状态</label>
+            <select id="aStatus">
+              <option value="">全部</option><option value="paid">已支付</option>
+              <option value="refunded">已退款</option><option value="pending">待支付</option>
+            </select>
+          </div>
+          <button class="btn btn-gold btn-sm" id="aFilterBtn">查询</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>订单号</th><th>场馆</th><th>时间</th><th>金额(元)</th><th>平台(30%)</th><th>商户(70%)</th><th>赛事编号</th><th>状态</th></tr>
+            </thead>
+            <tbody id="aOrdersTbody"><tr><td colspan="8"><div class="loading">加载中</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+
+    document.getElementById('aFilterBtn').addEventListener('click', loadAdminOrders);
+    loadAdminOrders();
+  }
+
+  async function loadAdminOrders() {
+    const params = new URLSearchParams({ page: 1, pageSize: 20 });
+    const ds = document.getElementById('aDateStart')?.value;
+    const de = document.getElementById('aDateEnd')?.value;
+    const st = document.getElementById('aStatus')?.value;
+    if (ds) params.set('dateStart', ds);
+    if (de) params.set('dateEnd', de);
+    if (st) params.set('status', st);
+
+    const data = await api('/orders?' + params.toString());
+    if (data && data.list) {
+      adminOrders = data.list;
+      const tbody = document.getElementById('aOrdersTbody');
+      const statusMap = { paid: 'badge-success', refunded: 'badge-danger', pending: 'badge-warning' };
+      tbody.innerHTML = data.list.map(o => `
+        <tr>
+          <td title="${o.orderNo}">${(o.orderNo||'').substring(0,20)}</td>
+          <td>${o.venueName || '--'}</td>
+          <td>${o.time || '--'}</td>
+          <td>¥${(o.amount/100).toFixed(2)}</td>
+          <td>¥${(o.platformFee/100).toFixed(2)}</td>
+          <td>¥${(o.venueIncome/100).toFixed(2)}</td>
+          <td>${o.matchId || '--'}</td>
+          <td><span class="badge ${statusMap[o.status]||'badge-muted'}">${o.status}</span></td>
+        </tr>`).join('');
+      if (!data.list.length) tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">暂无订单</div></td></tr>';
+    }
+  }
+
+  // ============================================
+  // Devices (Admin Bind)
+  // ============================================
+  async function renderDevices(container) {
+    // 先获取场馆列表用于下拉
+    const venuesRes = await api('/venues');
+    const venues = (venuesRes && venuesRes.list) ? venuesRes.list : [];
+
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-title"><span>管理员绑定设备到场馆</span></div>
+        <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:500px;">
+          <div class="form-group"><label>选择场馆</label>
+            <select id="abVenueId">
+              <option value="">-- 请选择 --</option>
+              ${venues.map(v => `<option value="${v.id}">${v.name} (${v.email || v.phone || '--'})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>设备 SN</label><input type="text" id="abSn" placeholder="输入设备序列号"></div>
+          <div class="form-group"><label>桌号标签</label><input type="text" id="abLabel" placeholder="如：吧台1号"></div>
+          <button class="btn btn-gold" onclick="bindDevice()">绑定设备</button>
+        </div>
+      </div>`;
+  }
+
+  async function bindDevice() {
+    const venueId = document.getElementById('abVenueId').value;
+    const deviceSn = document.getElementById('abSn').value.trim();
+    const tableLabel = document.getElementById('abLabel').value.trim();
+    if (!venueId || !deviceSn) { showToast('请选择场馆并输入设备SN', 'error'); return; }
+
+    const data = await api('/devices/bind', {
+      method: 'POST',
+      body: JSON.stringify({ venueId, deviceSn, tableLabel })
+    });
+    if (data && data.success) {
+      showToast(`设备 ${deviceSn} 绑定成功！桌号: ${data.tableCode}`, 'success');
+      document.getElementById('abSn').value = '';
+      document.getElementById('abLabel').value = '';
+    } else {
+      showToast(data?.error || '绑定失败', 'error');
+    }
+  }
+
+  // ============================================
+  // Refunds (Admin)
+  // ============================================
+  async function renderRefunds(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-title">
+          <span>平台退款</span>
+          <button class="btn btn-gold btn-sm" id="adminRefundBtn">发起退款</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>订单号</th><th>场馆</th><th>金额(元)</th><th>原因</th><th>发起方</th><th>状态</th></tr></thead>
+            <tbody id="aRefundsTbody"><tr><td colspan="6"><div class="empty-state"><p>已退款的订单将显示在此</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+
+    document.getElementById('adminRefundBtn').addEventListener('click', () => {
+      openModal('平台退款',
+        `<div class="form-group"><label>订单 ID (UUID)</label><input type="text" id="arOrderId" placeholder="输入订单UUID"></div>
+         <div class="form-group"><label>退款原因</label><input type="text" id="arReason" placeholder="输入原因"></div>`,
+        `<button class="btn btn-outline btn-sm" onclick="window._adminApp.closeModal()">取消</button>
+         <button class="btn btn-gold btn-sm" onclick="window._adminApp.adminRefund()">提交退款</button>`
+      );
+    });
+
+    const data = await api('/orders?status=refunded&pageSize=50');
+    if (data && data.list) {
+      document.getElementById('aRefundsTbody').innerHTML = data.list.map(o => `
+        <tr>
+          <td>${o.orderNo || '--'}</td>
+          <td>${o.venueName || '--'}</td>
+          <td>¥${(o.amount/100).toFixed(2)}</td>
+          <td>${o.refundReason || '--'}</td>
+          <td>${o.refundInitiatedBy === 'admin' ? '平台' : o.refundInitiatedBy === 'merchant' ? '商户' : o.refundInitiatedBy || '--'}</td>
+          <td><span class="badge badge-danger">已退款</span></td>
+        </tr>`).join('');
+    }
+  }
+
+  async function adminRefund() {
+    const orderId = document.getElementById('arOrderId')?.value.trim();
+    const reason = document.getElementById('arReason')?.value.trim();
+    if (!orderId || !reason) { showToast('请填写完整信息', 'error'); return; }
+
+    const data = await api('/refund', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, reason })
+    });
+    if (data && data.success) {
+      closeModal();
+      showToast('退款成功', 'success');
+      navigateTo('refunds');
+    } else {
+      showToast(data?.error || '退款失败', 'error');
+    }
+  }
+
+  window._adminApp = { closeModal, createVenue, adminRefund };
+  init();
+})();
+</script>
+</body>
+</html>

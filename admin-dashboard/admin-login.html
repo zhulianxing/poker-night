@@ -3,26 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poker Night · 商户后台</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Poker Night · 运营后台</title>
+  <link rel="stylesheet" href="../merchant-dashboard/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠️</text></svg>">
-  <style>
-    .login-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted); }
-    .login-switch a { color: var(--gold); cursor: pointer; }
-  </style>
 </head>
 <body>
 
 <div class="login-wrapper">
   <div class="login-card">
     <div class="login-logo">
-      <h1>♠️ POKER NIGHT</h1>
-      <p>商户管理后台</p>
+      <h1>⚙️ POKER NIGHT</h1>
+      <p>运营管理后台</p>
     </div>
-    <form id="loginForm">
+    <form id="adminLoginForm">
       <div class="form-group">
-        <label>邮箱账号</label>
-        <input type="email" id="email" placeholder="请输入邮箱" required autocomplete="email">
+        <label>管理员账号 / 邮箱</label>
+        <input type="text" id="username" placeholder="请输入账号或邮箱" required autocomplete="username">
       </div>
       <div class="form-group">
         <label>密码</label>
@@ -30,48 +26,38 @@
       </div>
       <button type="submit" class="btn btn-gold btn-block" id="loginBtn">登 录</button>
     </form>
-    <div class="login-switch">
-      <a onclick="goAdminLogin()">运营后台登录 →</a>
-    </div>
   </div>
 </div>
 
 <script>
-  // Redirect if already logged in
-  const token = localStorage.getItem('pn_merchant_token');
-  if (token) {
-    window.location.href = 'index.html';
-  }
+  const token = localStorage.getItem('pn_admin_token');
+  if (token) window.location.href = 'dashboard.html';
 
-  function goAdminLogin() {
-    window.location.href = 'admin-login.html';
-  }
-
-  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('loginBtn');
-    const email = document.getElementById('email').value.trim();
+    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
 
-    if (!email || !password) return;
+    if (!username || !password) return;
 
     btn.disabled = true;
     btn.textContent = '登录中...';
 
     try {
-      // Nginx: /merchant/api/v1/merchant/login → /api/v1/merchant/login
-      const res = await fetch('/merchant/api/v1/merchant/login', {
+      // /merchant/api/v1/admin/login → /api/v1/admin/login
+      const res = await fetch('/merchant/api/v1/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ username, email: username, password })
       });
 
       const data = await res.json();
 
       if (res.ok && data.token) {
-        localStorage.setItem('pn_merchant_token', data.token);
-        localStorage.setItem('pn_merchant_info', JSON.stringify(data.merchant || {}));
-        window.location.href = 'index.html';
+        localStorage.setItem('pn_admin_token', data.token);
+        localStorage.setItem('pn_admin_info', JSON.stringify(data.admin || {}));
+        window.location.href = 'dashboard.html';
       } else {
         showToast(data.error || data.message || '登录失败', 'error');
         btn.disabled = false;

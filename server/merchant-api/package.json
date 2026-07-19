@@ -1,12 +1,14 @@
 {
   "name": "@poker-night/merchant-api",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Merchant & Admin API for Poker Night",
   "main": "index.js",
   "dependencies": {
     "@poker-night/shared": "*",
     "express": "^4.19.0",
     "cors": "^2.8.5",
     "jsonwebtoken": "^9.0.0",
-    "bcryptjs": "^2.4.0"
+    "bcryptjs": "^2.4.0",
+    "axios": "^1.6.0"
   }
 }
