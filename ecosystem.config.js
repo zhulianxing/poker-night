@@ -52,8 +52,12 @@ module.exports = {
         PUBLIC_BASE_URL: 'http://43.164.130.145:3002',
         PUBLIC_RETURN_URL: 'http://43.164.130.145',
         // 虎皮椒配置（部署时填入实际值）
-        XUNHU_APP_ID: '',
+        XUNHU_APPID: '202606301',
+        XUNHU_APPKEY: '',
+        XUNHU_APP_ID: '202606301',
         XUNHU_APP_SECRET: '',
+        XUNHU_API: 'https://api.xunhupay.com/v1/payment',
+        XUNHU_QUERY_API: 'https://api.xunhupay.com/v1/payment/query',
         XUNHU_WX_URL: '',
         XUNHU_ALIPAY_URL: '',
       },
