@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
   launch_fee    INTEGER NOT NULL,
   player_count  SMALLINT DEFAULT 0,
   max_players   SMALLINT DEFAULT 6,
-  start_chips   INTEGER DEFAULT 1000,
+  start_chips   INTEGER DEFAULT 10000,
   start_blind   SMALLINT DEFAULT 10,
   blind_interval INTEGER DEFAULT 600,
   wait_countdown INTEGER DEFAULT 300,

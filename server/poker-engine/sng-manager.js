@@ -57,7 +57,12 @@ class SNGManager {
   startBlindTimer() {
     const interval = this.tournament.blind_interval || SNG_DEFAULTS.BLIND_INTERVAL;
     this.blindTimer = setInterval(() => {
-      if (this.blindLevel >= 30) { console.log('[SNG] Blind level capped at 30'); return; }
+      if (this.blindLevel >= 10) {
+        console.log('[SNG] Blind max level reached, stopping timer');
+        clearInterval(this.blindTimer);
+        this.blindTimer = null;
+        return;
+      }
       this.blindLevel++;
       console.log(`[SNG] Blind level up to ${this.blindLevel}`);
       this.emit('blind_level_up', {
@@ -98,8 +103,9 @@ class SNGManager {
       this.finish();
       return;
     }
-    // 如果只剩 2 人且双方筹码都不够 BB，直接结束
-    if (activePlayers.length === 2 && activePlayers.every(p => p.chipCount < _bb)) {
+    // 如果所有活跃玩家筹码都不够 BB → 结束（防止盲注远超筹码的现象）
+    if (activePlayers.length > 1 && activePlayers.every(p => p.chipCount < _bb)) {
+      console.log('[SNG] All players short-stacked vs BB, finishing tournament');
       this.finish();
       return;
     }
@@ -446,74 +452,93 @@ class SNGManager {
     if (!player) return;
 
     this.actionTimer = setTimeout(() => {
-      // Bot auto-action: smarter strategy
+      // Bot auto-action: smarter strategy with position & hand-awareness
       if (player.isBot) {
         const hand = this.currentHand;
         if (!hand) return;
         const alreadyBet = this.getSeatCurrentBet(seatIndex);
         const toCall = Math.max(0, hand.currentBet - alreadyBet);
         const potOdds = toCall > 0 ? toCall / (hand.pot + toCall) : 0;
-        const chipRatio = player.chipCount / 1000; // 相对筹码
-        
-        // Bot 策略：
-        // - 可以 check → 80% check, 20% raise（偷池）
-        // - 需要跟注：根据底池赔率和筹码决定
-        //   - potOdds < 25% 且筹码充足 → 85% call, 15% raise
-        //   - potOdds 25-40% → 60% call, 5% raise, 35% fold
-        //   - potOdds > 40% → 20% call, 80% fold
-        // - 筹码 < 3BB → push or fold（短筹码策略）
         const { bb } = this.getCurrentBlinds();
+        const effectiveStack = player.chipCount / bb;
+
+        // 位置估算：接近 BU 算晚位，打得更松
+        const dealerDist = (seatIndex - this.dealerIndex + this.players.length) % this.players.length;
+        const isLatePos = dealerDist <= 2 || dealerDist >= this.players.length - 2;
         
-        if (toCall === 0) {
-          if (Math.random() < 0.2 && player.chipCount > bb * 5) {
-            // 偷池 raise
-            const raiseAmt = Math.min(player.chipCount, bb * 3);
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} raise ${raiseAmt} (steal)`);
-            this.handleAction(player.id, ACTIONS.RAISE, raiseAmt);
-          } else {
+        // 手牌质量评估
+        const holeData = hand.holeCards[player.id] || [];
+        const hasPair = holeData.length >= 2 && holeData[0].rank === holeData[1].rank;
+        const highCard = holeData.length >= 2 
+          ? ['A','K','Q','J','10'].includes(holeData[0].rank) || ['A','K','Q','J','10'].includes(holeData[1].rank)
+          : false;
+        const suited = holeData.length >= 2 && holeData[0].suit === holeData[1].suit;
+        const handStrength = (hasPair ? 3 : 0) + (highCard ? 1 : 0) + (suited ? 1 : 0);
+        
+        const isShortStack = effectiveStack < 5;
+        const isMicroStack = effectiveStack < 2;
+
+        // 整手牌策略因子
+        const aggression = (isLatePos ? 1.3 : 1.0) * (handStrength >= 3 ? 1.4 : 1.0);
+
+        // 模拟思考时间 500~1500ms
+        const thinkTime = 500 + Math.random() * 1500;
+        const botAction = () => {
+          // ── 短筹码策略 ──
+          if (isShortStack || isMicroStack) {
+            if (isMicroStack && handStrength >= 1) {
+              console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} all-in (micro)`);
+              return this.handleAction(player.id, ACTIONS.ALLIN);
+            }
+            if (handStrength >= 2 && Math.random() < 0.7) {
+              console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} all-in (good hand)`);
+              return this.handleAction(player.id, ACTIONS.ALLIN);
+            }
+            if (Math.random() < 0.5) {
+              console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} all-in`);
+              return this.handleAction(player.id, ACTIONS.ALLIN);
+            }
+            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} fold`);
+            return this.handleAction(player.id, ACTIONS.FOLD);
+          }
+
+          // ── 可以 check ──
+          if (toCall === 0) {
+            if (Math.random() < 0.18 * aggression && player.chipCount > bb * 6) {
+              // 多样化加注尺度
+              const raiseOpts = [bb * 2.5, bb * 3, bb * 4, Math.floor(hand.pot * 0.75)];
+              const raiseAmt = Math.min(player.chipCount, raiseOpts[Math.floor(Math.random() * raiseOpts.length)]);
+              console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} raise ${raiseAmt}`);
+              return this.handleAction(player.id, ACTIONS.RAISE, raiseAmt);
+            }
             console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} check`);
-            this.handleAction(player.id, ACTIONS.CHECK);
+            return this.handleAction(player.id, ACTIONS.CHECK);
           }
-        } else if (player.chipCount < bb * 3) {
-          // 短筹码 push or fold
-          if (Math.random() < 0.5) {
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} all-in (short stack)`);
-            this.handleAction(player.id, ACTIONS.ALLIN);
-          } else {
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} fold (short stack)`);
-            this.handleAction(player.id, ACTIONS.FOLD);
+
+          // ── 好赔率 + 好牌 → 价值加注 ──
+          if (potOdds < 0.2 && handStrength >= 2) {
+            const raiseOpts = [hand.currentBet * 2 + bb, hand.currentBet * 2.5, hand.currentBet * 3];
+            const raiseAmt = Math.min(player.chipCount, raiseOpts[Math.floor(Math.random() * raiseOpts.length)]);
+            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} raise ${raiseAmt} (value)`);
+            return this.handleAction(player.id, ACTIONS.RAISE, raiseAmt);
           }
-        } else if (potOdds < 0.25) {
-          if (Math.random() < 0.15) {
-            const raiseAmt = Math.min(player.chipCount, hand.currentBet * 2 + bb);
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} raise ${raiseAmt}`);
-            this.handleAction(player.id, ACTIONS.RAISE, raiseAmt);
-          } else {
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} call ${toCall}`);
-            this.handleAction(player.id, ACTIONS.CALL, toCall);
-          }
-        } else if (potOdds < 0.4) {
+
+          // ── 常规决策 ──
+          const callChance = Math.min(0.85, Math.max(0.2, 0.65 * Math.min(aggression, 2.0) * (potOdds > 0.3 ? 0.6 : 1.0)));
           const r = Math.random();
-          if (r < 0.05) {
+          if (r < callChance * 0.8) {
+            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} call ${toCall}`);
+            return this.handleAction(player.id, ACTIONS.CALL, toCall);
+          } else if (r < callChance * 0.8 + 0.15 * aggression) {
             const raiseAmt = Math.min(player.chipCount, hand.currentBet * 2 + bb);
             console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} raise ${raiseAmt}`);
-            this.handleAction(player.id, ACTIONS.RAISE, raiseAmt);
-          } else if (r < 0.65) {
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} call ${toCall}`);
-            this.handleAction(player.id, ACTIONS.CALL, toCall);
+            return this.handleAction(player.id, ACTIONS.RAISE, raiseAmt);
           } else {
             console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} fold`);
-            this.handleAction(player.id, ACTIONS.FOLD);
+            return this.handleAction(player.id, ACTIONS.FOLD);
           }
-        } else {
-          if (Math.random() < 0.2) {
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} call ${toCall} (expensive)`);
-            this.handleAction(player.id, ACTIONS.CALL, toCall);
-          } else {
-            console.log(`[SNG] Bot ${player.nickname || player.id.substring(0,8)} fold (expensive)`);
-            this.handleAction(player.id, ACTIONS.FOLD);
-          }
-        }
+        };
+        setTimeout(botAction, thinkTime);
       } else {
         // Real player timeout: auto-fold
         console.log(`[SNG] Player ${player.id} timed out, auto-fold`);

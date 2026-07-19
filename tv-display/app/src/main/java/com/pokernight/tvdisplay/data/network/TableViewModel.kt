@@ -287,7 +287,7 @@ class TableViewModel : ViewModel() {
                     }
                     state.copy(
                         seats = updatedSeats,
-                        pot = 0,
+                        pot = pot,   // Use server pot value, don't hard-reset to 0
                         currentBet = 0,
                         actingIndex = -1,
                     )
