@@ -10,8 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -22,10 +24,8 @@ import com.pokernight.tvdisplay.ui.theme.RedAction
 import com.pokernight.tvdisplay.ui.theme.GoldAccent
 
 /**
- * Displays a single poker card.
- * @param card The card to display
- * @param modifier Modifier
- * @param faceDown If true, shows card back
+ * Classic playing card — rank in corners, suit in center.
+ * Matches mainstream poker broadcast style (WSOP, EPT, etc.).
  */
 @Composable
 fun PokerCardView(
@@ -34,86 +34,93 @@ fun PokerCardView(
     faceDown: Boolean = false,
     highlighted: Boolean = false,
 ) {
+    val isCardBack = faceDown || card == null
+
     Box(
         modifier = modifier
-            .width(56.dp)
-            .height(80.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(
-                if (faceDown || card == null) {
-                    Color(0xFF1E3A5F)
-                } else {
-                    CardWhite
-                }
+            .width(64.dp)
+            .height(90.dp)
+            .shadow(
+                elevation = if (highlighted) 6.dp else 3.dp,
+                shape = RoundedCornerShape(8.dp),
+                ambientColor = Color.Black.copy(alpha = 0.3f),
+                spotColor = Color.Black.copy(alpha = 0.4f),
             )
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isCardBack) CardBack else CardWhite)
             .border(
-                width = if (highlighted) 2.dp else 1.dp,
-                color = if (highlighted) GoldAccent else Color(0xFF888888),
-                shape = RoundedCornerShape(6.dp),
+                width = if (highlighted) 2.dp else (1.5.dp),
+                color = if (highlighted) GoldAccent else CardBorder,
+                shape = RoundedCornerShape(8.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {
-        if (faceDown || card == null) {
-            // Card back pattern
-            Text(
-                text = "♠",
-                color = Color(0xFF2A5080),
-                fontSize = 32.sp,
-            )
-        } else {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+        if (isCardBack) {
+            // ── Classic card back with diamond pattern ──
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF152B45)),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = card.displayRank,
-                    color = if (card.isRed) RedAction else Color.Black,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = card.suitSymbol,
-                    color = if (card.isRed) RedAction else Color.Black,
-                    fontSize = 20.sp,
+                // Outer diamond
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(Color(0xFF1E3A5F), RoundedCornerShape(4.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("♠", color = Color(0xFF2A5080), fontSize = 28.sp)
+                }
+                // Center dot
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(GoldAccent.copy(alpha = 0.5f)),
                 )
             }
+        } else {
+            // ── Classic card face ──
+            val c = card!!  // safe: we're in the non-card-back branch
+            val cardColor = if (c.isRed) RedAction else CardTextBlack
+
+            // Corner rank (top-left)
+            Text(
+                text = c.displayRank,
+                color = cardColor,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 5.dp, top = 3.dp),
+            )
+
+            // Large suit in center
+            Text(
+                text = c.suitSymbol,
+                color = cardColor,
+                fontSize = 28.sp,
+                modifier = Modifier.align(Alignment.Center),
+            )
+
+            // Corner rank (bottom-right)
+            Text(
+                text = c.displayRank,
+                color = cardColor,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 5.dp, bottom = 3.dp),
+            )
         }
     }
 }
 
-/**
- * Displays a row of community cards.
- * @param cards List of cards (up to 5)
- * @param modifier Modifier
- */
-@Composable
-fun CommunityCardsRow(
-    cards: List<Card>,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        for (i in 0 until 5) {
-            val card = cards.getOrNull(i)
-            if (card != null) {
-                PokerCardView(card = card)
-            } else {
-                // Empty placeholder — 🔴 bright for debug
-                Box(
-                    modifier = Modifier
-                        .width(56.dp)
-                        .height(80.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0x33FF0000))
-                        .border(2.dp, Color(0xFFFF0000), RoundedCornerShape(6.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = "-", color = Color(0xFFFF4444), fontSize = 24.sp)
-                }
-            }
-        }
-    }
-}
+// ── Card colors ──
+private val CardBack = Color(0xFF0F2440)
+private val CardBorder = Color(0xFF999999)
+private val CardTextBlack = Color(0xFF1A1A1A)

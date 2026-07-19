@@ -144,15 +144,26 @@ private fun SeatRow(
 @Composable
 private fun CenterArea(state: TableState) {
     val potText = formatPot(state.pot)
-    val betText = formatPot(state.currentBet)
     val cards = state.communityCards
-    val cardSpacing = 80.dp
+    val cardSpacing = 86.dp  // 64w + 22dp gap
 
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        // ── Community cards row (5 slots; null = face-down) ──
+        // ── Stage badge (top of center area) ──
+        if (state.stage.isNotEmpty()) {
+            Text(
+                text = state.stage.uppercase(),
+                color = GoldAccent.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = (-8).dp),
+            )
+        }
+
+        // ── Community cards row (5 slots) ──
         for (i in 0 until 5) {
             val card = cards.getOrNull(i)
             val xOffset = cardSpacing * (i - 2)
@@ -162,20 +173,25 @@ private fun CenterArea(state: TableState) {
             )
         }
 
-        // ── Pot info below cards ──
-        val infoText = buildString {
-            if (state.pot > 0) { append("Pot: "); append(potText) }
-            if (state.pot > 0 && state.currentBet > 0) { append("  |  ") }
-            if (state.currentBet > 0) { append("Bet: "); append(betText) }
-        }
-        if (infoText.isNotEmpty()) {
-            Text(
-                text = infoText,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.BottomCenter).offset(y = (-4).dp),
-            )
+        // ── Pot (below cards) ──
+        if (state.pot > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = (-12).dp)
+                    .background(
+                        color = Color.Black.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Pot: $potText",
+                    color = GoldAccent,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
