@@ -25,3 +25,9 @@ val RailDark = Color(0xFF2A1810)  // dark brown table rail
 val CardBack = Color(0xFF1E3A5F)
 val CardBackAccent = Color(0xFF2A5080)
 val StageBg = Color(0x33FFD700)
+
+// ── Idle screen refined palette (polished poker-table look) ──
+// Muted, premium gold used for the idle/standby screen branding & QR accents.
+val IdleGold = Color(0xFFD4A853)      // #d4a853 refined gold accent
+val IdleTableGreen = Color(0xFF1A5F3C) // #1a5f3c table green (felt)
+val IdleBrown = Color(0xFF2A1508)    // #2a1508 deep brown (rail / wood)

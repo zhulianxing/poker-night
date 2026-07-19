@@ -12,8 +12,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -24,6 +27,12 @@ import com.pokernight.tvdisplay.ui.util.generateQrCode
 /**
  * A reusable QR code card with title and description.
  * Used in IdleScreen and WaitingScreen.
+ *
+ * Polish: gold glow shadow, rounded gold-tinted border, and a prominent
+ * header title for clearer scannable guidance.
+ *
+ * @param accentColor border / glow / title accent (defaults to global GoldAccent
+ *        so WaitingScreen keeps its original look).
  */
 @Composable
 fun QrCodeCard(
@@ -32,6 +41,7 @@ fun QrCodeCard(
     description: String,
     modifier: Modifier = Modifier,
     qrSize: Int = 160,
+    accentColor: Color = GoldAccent,
 ) {
     var qrBitmap by remember(url) { mutableStateOf<Bitmap?>(null) }
 
@@ -41,29 +51,48 @@ fun QrCodeCard(
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .shadow(
+                elevation = 14.dp,
+                shape = RoundedCornerShape(16.dp),
+                ambientColor = accentColor.copy(alpha = 0.40f),
+                spotColor = accentColor.copy(alpha = 0.40f),
+            )
+            .clip(RoundedCornerShape(16.dp))
             .background(CardBg)
-            .border(1.dp, SeatBorder, RoundedCornerShape(12.dp))
-            .padding(16.dp),
+            .border(
+                width = 1.5.dp,
+                color = accentColor.copy(alpha = 0.55f),
+                shape = RoundedCornerShape(16.dp),
+            )
+            .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // Header title
+        Text(
+            text = title,
+            color = accentColor,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+        )
+
         if (qrBitmap != null) {
             Image(
                 bitmap = qrBitmap!!.asImageBitmap(),
                 contentDescription = title,
                 modifier = Modifier
                     .size(qrSize.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(2.dp, GoldAccent.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(2.dp, accentColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp)),
             )
         } else {
             Box(
                 modifier = Modifier
                     .size(qrSize.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(SeatBg)
-                    .border(2.dp, SeatBorder, RoundedCornerShape(8.dp)),
+                    .border(2.dp, SeatBorder, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -75,18 +104,11 @@ fun QrCodeCard(
         }
 
         Text(
-            text = title,
-            color = GoldAccent,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Text(
             text = description,
             color = TextSecondary,
-            fontSize = 11.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.widthIn(max = 180.dp),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 200.dp),
         )
     }
 }
