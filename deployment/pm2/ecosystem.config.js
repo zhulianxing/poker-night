@@ -1,0 +1,133 @@
+// PM2 Ecosystem Configuration for Poker Night
+// 5 Services: API, Socket, Merchant, Payment, Bot
+
+module.exports = {
+  apps: [
+    // 1. Main REST API (Port 3010)
+    {
+      name: 'poker-api',
+      script: './server/poker-api/index.js',
+      cwd: '/opt/poker-night',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      error_file: '/var/log/pm2/poker-api-error.log',
+      out_file: '/var/log/pm2/poker-api-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3010,
+        DB_HOST: '127.0.0.1',
+        DB_PORT: 5432,
+        DB_NAME: 'poker_night',
+        DB_USER: 'poker',
+        DB_PASSWORD: 'poker123',
+        JWT_SECRET: 'poker-night-secret-2026',
+      },
+    },
+    
+    // 2. WebSocket/Socket.IO Server (Port 3001)
+    {
+      name: 'poker-socket',
+      script: './server/poker-socket/index.js',
+      cwd: '/opt/poker-night',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      error_file: '/var/log/pm2/poker-socket-error.log',
+      out_file: '/var/log/pm2/poker-socket-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3001,
+        DB_HOST: '127.0.0.1',
+        DB_PORT: 5432,
+        DB_NAME: 'poker_night',
+        DB_USER: 'poker',
+        DB_PASSWORD: 'poker123',
+        JWT_SECRET: 'poker-night-secret-2026',
+      },
+    },
+    
+    // 3. Payment Service (Port 3002)
+    {
+      name: 'poker-payment',
+      script: './server/payment-svc/index.js',
+      cwd: '/opt/poker-night',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '200M',
+      error_file: '/var/log/pm2/poker-payment-error.log',
+      out_file: '/var/log/pm2/poker-payment-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3002,
+        DB_HOST: '127.0.0.1',
+        DB_PORT: 5432,
+        DB_NAME: 'poker_night',
+        DB_USER: 'poker',
+        DB_PASSWORD: 'poker123',
+        PUBLIC_BASE_URL: 'http://43.164.130.145:3002',
+        PUBLIC_RETURN_URL: 'http://43.164.130.145',
+        XUNHU_APPID: '202606301',
+        XUNHU_APPKEY: '',
+        XUNHU_APP_ID: '202606301',
+        XUNHU_APP_SECRET: '',
+        XUNHU_API: 'https://api.xunhupay.com/v1/payment',
+        XUNHU_QUERY_API: 'https://api.xunhupay.com/v1/payment/query',
+      },
+    },
+    
+    // 4. Merchant API (Port 3003)
+    {
+      name: 'poker-merchant',
+      script: './server/merchant-api/index.js',
+      cwd: '/opt/poker-night',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '200M',
+      error_file: '/var/log/pm2/poker-merchant-error.log',
+      out_file: '/var/log/pm2/poker-merchant-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3003,
+        DB_HOST: '127.0.0.1',
+        DB_PORT: 5432,
+        DB_NAME: 'poker_night',
+        DB_USER: 'poker',
+        DB_PASSWORD: 'poker123',
+        JWT_SECRET: 'poker-night-secret-2026',
+      },
+    },
+    
+    // 5. Bot Test Service (Port 3011) - Optional
+    {
+      name: 'poker-bot',
+      script: './auto_bot_test.js',
+      cwd: '/opt/poker-night',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '150M',
+      error_file: '/var/log/pm2/poker-bot-error.log',
+      out_file: '/var/log/pm2/poker-bot-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: {
+        NODE_ENV: 'production',
+        BOT_API_URL: 'http://127.0.0.1:3010',
+        BOT_SOCKET_URL: 'http://127.0.0.1:3001',
+      },
+    },
+  ],
+};
