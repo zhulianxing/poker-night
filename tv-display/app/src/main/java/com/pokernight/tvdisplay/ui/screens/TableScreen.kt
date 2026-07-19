@@ -19,8 +19,8 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import com.pokernight.tvdisplay.data.model.PlayerSeat
 import com.pokernight.tvdisplay.data.model.TableState
 import com.pokernight.tvdisplay.ui.components.BottomBar
-import com.pokernight.tvdisplay.ui.components.CommunityCardsRow
 import com.pokernight.tvdisplay.ui.components.PlayerSeatView
+import com.pokernight.tvdisplay.ui.components.PokerCardView
 import com.pokernight.tvdisplay.ui.components.TopBar
 import com.pokernight.tvdisplay.ui.theme.*
 
@@ -138,44 +138,45 @@ private fun SeatRow(
 
 /**
  * Center area with community cards and pot.
+ * Mainstream poker broadcast layout: cards centered, stage badge, pot info below.
+ * Uses Box with absolute positioning (works around Android TV multi-child bug).
  */
 @Composable
 private fun CenterArea(state: TableState) {
-    val stageDisplay = if (state.stage.isNotEmpty()) state.stage.uppercase() else "WAITING"
     val potText = formatPot(state.pot)
     val betText = formatPot(state.currentBet)
-    
-    // Build card display: "A♠ K♥ 2♦" style (ranks + suit symbols)
-    val cardsStr = state.communityCards.joinToString("  ") { card -> card.rank + card.suit }
-    
-    // Build all text lines — single Text composable to work around Android TV Column issues
-    val displayText = buildString {
-        appendLine(stageDisplay)
-        if (cardsStr.isNotEmpty()) {
-            appendLine("")
-            appendLine(cardsStr)
-        }
-        if (state.pot > 0) {
-            appendLine("")
-            append("Pot: " + potText)
-        }
-        if (state.currentBet > 0) {
-            append("  |  Bet: " + betText)
-        }
-    }.trimEnd()
-    
+    val cards = state.communityCards
+    val cardSpacing = 80.dp
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = displayText,
-            color = GoldAccent,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            lineHeight = 26.sp,
-        )
+        // ── Community cards row (5 slots; null = face-down) ──
+        for (i in 0 until 5) {
+            val card = cards.getOrNull(i)
+            val xOffset = cardSpacing * (i - 2)
+            PokerCardView(
+                card = card,
+                modifier = Modifier.align(Alignment.Center).offset(x = xOffset),
+            )
+        }
+
+        // ── Pot info below cards ──
+        val infoText = buildString {
+            if (state.pot > 0) { append("Pot: "); append(potText) }
+            if (state.pot > 0 && state.currentBet > 0) { append("  |  ") }
+            if (state.currentBet > 0) { append("Bet: "); append(betText) }
+        }
+        if (infoText.isNotEmpty()) {
+            Text(
+                text = infoText,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.BottomCenter).offset(y = (-4).dp),
+            )
+        }
     }
 }
 
