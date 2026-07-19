@@ -26,6 +26,7 @@ import com.pokernight.tvdisplay.ui.theme.GoldAccent
 /**
  * Classic playing card — rank in corners, suit in center.
  * Matches mainstream poker broadcast style (WSOP, EPT, etc.).
+ * Scaled for TV landscape at 54×75dp (5:7 ratio).
  */
 @Composable
 fun PokerCardView(
@@ -84,7 +85,7 @@ fun PokerCardView(
             }
         } else {
             // ── Classic card face ──
-            val c = card!!  // safe: we're in the non-card-back branch
+            val c = card!!
             val cardColor = if (c.isRed) RedAction else CardTextBlack
 
             // Corner rank (top-left)

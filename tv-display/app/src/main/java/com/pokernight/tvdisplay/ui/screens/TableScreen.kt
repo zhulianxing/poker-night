@@ -26,7 +26,6 @@ import com.pokernight.tvdisplay.ui.theme.*
 
 /**
  * Main table screen — shows the full poker table with seats, community cards, and pot.
- * Only used when phase == "started".
  */
 @Composable
 fun TableScreen(
@@ -41,99 +40,63 @@ fun TableScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Top bar
         TopBar(state = state)
-
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Center: Poker table
         Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
             PokerTableContent(state = state)
         }
-
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Bottom bar
-        BottomBar(
-            handHistory = state.handHistory,
-            onDisconnect = onDisconnect,
-        )
+        BottomBar(handHistory = state.handHistory, onDisconnect = onDisconnect)
     }
 }
 
 /**
- * The poker table with 6 seats arranged (3 top, 3 bottom) and community cards in center.
- * Mainstream poker broadcast style with dark table rail.
+ * Poker table with rail frame + green felt.
+ * 98% height + minimal padding = maximum room for 76×108dp cards between seat rows.
  */
 @Composable
 private fun PokerTableContent(state: TableState) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        // ── Table outer rail (dark border) ──
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // ── Dark table rail ──
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.93f)
-                .fillMaxHeight(0.86f)
-                .clip(RoundedCornerShape(130.dp))
+                .fillMaxHeight(0.98f)
+                .clip(RoundedCornerShape(100.dp))
                 .background(RailDark)
-                .padding(8.dp),  // rail thickness
+                .padding(4.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            // ── Table inner felt ──
+            // ── Green felt ──
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(125.dp))
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(TableGreen, TableGreenDark),
-                        )
-                    ),
+                    .clip(RoundedCornerShape(97.dp))
+                    .background(Brush.radialGradient(listOf(TableGreen, TableGreenDark))),
+                contentAlignment = Alignment.Center,
             ) {
-                // ── Table content: seats + cards ──
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    // Top 3 seats
-                    SeatRow(
-                        seats = state.seats,
-                        indices = listOf(3, 4, 5),
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 14.dp, start = 20.dp, end = 20.dp),
-                    )
-
-                    // Community cards centered between top & bottom seat rows
-                    CenterArea(state = state, modifier = Modifier.align(Alignment.Center))
-
-                    // Bottom 3 seats — show eliminated/empty placeholders
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .padding(bottom = 14.dp, start = 20.dp, end = 20.dp),
-                    ) {
-                        SeatRow(
-                            seats = state.seats,
-                            indices = listOf(0, 1, 2),
-                        )
-                    }
-                }
+                // Top 3 seats
+                SeatRow(state.seats, listOf(3, 4, 5),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp, start = 20.dp, end = 20.dp))
+                // Bottom 3 seats
+                SeatRow(state.seats, listOf(0, 1, 2),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp, start = 20.dp, end = 20.dp))
+                // Center: cards + pot (slightly below geometric center for better balance)
+                CenterArea(state, modifier = Modifier.align(Alignment.Center))
             }
         }
     }
 }
 
 /**
- * Row of 3 seats — shows all 3 slots even when seat data is missing.
+ * Row of 3 seats.
  */
 @Composable
 private fun SeatRow(
@@ -154,9 +117,8 @@ private fun SeatRow(
 }
 
 /**
- * Center area with community cards and pot.
- * Mainstream poker broadcast layout: cards centered, stage badge, pot info below.
- * Uses Box with absolute positioning (works around Android TV multi-child bug).
+ * Center area: community cards (flop+) or large stage badge (preflop).
+ * Pot always visible below cards/badge.
  */
 @Composable
 private fun CenterArea(
@@ -165,69 +127,62 @@ private fun CenterArea(
 ) {
     val potText = formatPot(state.pot)
     val cards = state.communityCards
-    val cardSpacing = 97.dp  // 76w + 21dp gap between cards
+    val hasCards = cards.isNotEmpty()
+    val cardSpacing = 88.dp
 
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
-        // ── Stage badge (top of center area) ──
-        if (state.stage.isNotEmpty()) {
+        if (hasCards) {
+            // ── Flop / Turn / River ──
+            for (i in 0 until 5) {
+                val card = cards.getOrNull(i)
+                val xOffset = cardSpacing * (i - 2)
+                PokerCardView(
+                    card = card,
+                    modifier = Modifier.align(Alignment.Center).offset(x = xOffset),
+                    faceDown = card == null,
+                )
+            }
+        } else {
+            // ── Preflop: large stage label ──
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = 2.dp)
-                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 12.dp, vertical = 3.dp),
+                    .padding(horizontal = 24.dp, vertical = 20.dp)
+                    .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 32.dp, vertical = 10.dp),
             ) {
                 Text(
-                    text = state.stage.uppercase(),
+                    text = state.stage.uppercase().ifEmpty { "PREFLOP" },
                     color = GoldAccent,
-                    fontSize = 12.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
+                    letterSpacing = 4.sp,
                 )
             }
         }
 
-        // ── Community cards row (5 slots) ──
-        for (i in 0 until 5) {
-            val card = cards.getOrNull(i)
-            val xOffset = cardSpacing * (i - 2)
-            PokerCardView(
-                card = card,
-                modifier = Modifier.align(Alignment.Center).offset(x = xOffset),
+        // ── Pot (always visible) ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = 4.dp)
+                .background(Color.Black.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                .padding(horizontal = 20.dp, vertical = 5.dp),
+        ) {
+            Text(
+                text = "Pot: $potText",
+                color = if (state.pot > 0) GoldAccent else TextTertiary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
             )
-        }
-
-        // ── Pot (below cards) ──
-        if (state.pot > 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = (-12).dp)
-                    .background(
-                        color = Color.Black.copy(alpha = 0.25f),
-                        shape = RoundedCornerShape(16.dp),
-                    )
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "Pot: $potText",
-                    color = GoldAccent,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
         }
     }
 }
 
-
-private fun formatPot(pot: Int): String {
-    return when {
-        pot >= 1_000_000 -> "${pot / 1_000_000}M"
-        pot >= 1_000 -> "${pot / 1_000}K"
-        else -> pot.toString()
-    }
+private fun formatPot(pot: Int): String = when {
+    pot >= 1_000_000 -> "${pot / 1_000_000}M"
+    pot >= 1_000 -> "${pot / 1_000}K"
+    else -> pot.toString()
 }
