@@ -38,8 +38,8 @@ fun PokerCardView(
 
     Box(
         modifier = modifier
-            .width(64.dp)
-            .height(90.dp)
+            .width(76.dp)
+            .height(108.dp)
             .shadow(
                 elevation = if (highlighted) 6.dp else 3.dp,
                 shape = RoundedCornerShape(8.dp),
@@ -68,11 +68,11 @@ fun PokerCardView(
                 // Outer diamond
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(56.dp)
                         .background(Color(0xFF1E3A5F), RoundedCornerShape(4.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("♠", color = Color(0xFF2A5080), fontSize = 28.sp)
+                    Text("♠", color = Color(0xFF2A5080), fontSize = 34.sp)
                 }
                 // Center dot
                 Box(
@@ -91,18 +91,18 @@ fun PokerCardView(
             Text(
                 text = c.displayRank,
                 color = cardColor,
-                fontSize = 16.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 5.dp, top = 3.dp),
+                    .padding(start = 6.dp, top = 4.dp),
             )
 
             // Large suit in center
             Text(
                 text = c.suitSymbol,
                 color = cardColor,
-                fontSize = 28.sp,
+                fontSize = 34.sp,
                 modifier = Modifier.align(Alignment.Center),
             )
 
@@ -110,11 +110,11 @@ fun PokerCardView(
             Text(
                 text = c.displayRank,
                 color = cardColor,
-                fontSize = 16.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 5.dp, bottom = 3.dp),
+                    .padding(end = 6.dp, bottom = 4.dp),
             )
         }
     }

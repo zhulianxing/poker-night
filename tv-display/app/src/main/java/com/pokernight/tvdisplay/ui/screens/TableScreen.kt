@@ -145,7 +145,7 @@ private fun SeatRow(
 private fun CenterArea(state: TableState) {
     val potText = formatPot(state.pot)
     val cards = state.communityCards
-    val cardSpacing = 86.dp  // 64w + 22dp gap
+    val cardSpacing = 97.dp  // 76w + 21dp gap between cards
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -153,14 +153,21 @@ private fun CenterArea(state: TableState) {
     ) {
         // ── Stage badge (top of center area) ──
         if (state.stage.isNotEmpty()) {
-            Text(
-                text = state.stage.uppercase(),
-                color = GoldAccent.copy(alpha = 0.6f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = (-8).dp),
-            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 2.dp)
+                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 12.dp, vertical = 3.dp),
+            ) {
+                Text(
+                    text = state.stage.uppercase(),
+                    color = GoldAccent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                )
+            }
         }
 
         // ── Community cards row (5 slots) ──

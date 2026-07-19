@@ -26,7 +26,7 @@ import com.pokernight.tvdisplay.data.model.PlayerStatus
 import com.pokernight.tvdisplay.ui.theme.*
 
 /**
- * Displays a single player seat.
+ * Compact player seat box — smaller to leave room for big cards.
  */
 @Composable
 fun PlayerSeatView(
@@ -39,15 +39,11 @@ fun PlayerSeatView(
     val isAllIn = seat.status == PlayerStatus.ALL_IN
     val isActing = seat.isActing
 
-    // Blinking animation for acting player
     val infiniteTransition = rememberInfiniteTransition(label = "acting_blink")
     val borderAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
         targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600),
-            repeatMode = RepeatMode.Reverse,
-        ),
+        animationSpec = infiniteRepeatable(animation = tween(600), repeatMode = RepeatMode.Reverse),
         label = "border_alpha",
     )
 
@@ -64,12 +60,6 @@ fun PlayerSeatView(
         else -> SeatBorder
     }
 
-    val borderWidth = when {
-        isActing || isAllIn -> 3.dp
-        isEmpty -> 1.dp
-        else -> 2.dp
-    }
-
     val statusColor = when {
         isAllIn -> GoldAccent
         isFolded -> TextTertiary
@@ -80,110 +70,79 @@ fun PlayerSeatView(
 
     Box(
         modifier = modifier
-            .width(200.dp)
-            .height(100.dp)
+            .width(140.dp)
+            .height(56.dp)
             .alpha(seatAlpha)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(SeatBg)
-            .border(borderWidth, borderColor, RoundedCornerShape(12.dp))
-            .padding(12.dp),
-        contentAlignment = Alignment.Center,
+            .border(
+                width = if (isActing || isAllIn) 2.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(8.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.CenterStart,
     ) {
         if (isEmpty) {
-            Text(
-                text = "Empty",
-                color = TextTertiary,
-                fontSize = 14.sp,
-            )
+            Text("Empty", color = TextTertiary, fontSize = 11.sp)
         } else {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxSize(),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Top row: avatar + nickname + dealer button
+                // Left: avatar + name + dealer
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = seat.avatar.ifEmpty { "\uD83C\uDCCF" },
-                            fontSize = 18.sp,
-                        )
-                        Text(
-                            text = seat.nickname.ifEmpty { "Player ${seat.seatIndex + 1}" },
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                    }
+                    Text(
+                        text = seat.avatar.ifEmpty { "\uD83C\uDCCF" },
+                        fontSize = 14.sp,
+                    )
+                    Text(
+                        text = seat.nickname.ifEmpty { "P${seat.seatIndex + 1}" },
+                        color = TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
                     if (seat.isDealer) {
                         Box(
                             modifier = Modifier
-                                .size(22.dp)
+                                .size(16.dp)
                                 .clip(CircleShape)
                                 .background(GoldAccent),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = "D",
-                                color = Color.Black,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
+                            Text("D", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                // Middle: chips
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                // Right: chips + status
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = formatChipCount(seat.chipCount),
                         color = ChipGreen,
-                        fontSize = 20.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                     )
-                    if (seat.currentBet > 0) {
+                    if (seat.lastAction.isNotEmpty()) {
+                        Text(seat.lastAction, color = statusColor, fontSize = 10.sp, maxLines = 1)
+                    } else if (!isEmpty && seat.status != PlayerStatus.PLAYING) {
                         Text(
-                            text = "Bet: ${seat.currentBet}",
-                            color = GoldAccent,
-                            fontSize = 14.sp,
+                            text = when (seat.status) {
+                                PlayerStatus.FOLDED -> "Fold"
+                                PlayerStatus.ALL_IN -> "All-In"
+                                PlayerStatus.ELIMINATED -> "Elim"
+                                PlayerStatus.WAITING -> "Wait"
+                                else -> ""
+                            },
+                            color = statusColor,
+                            fontSize = 10.sp,
                         )
                     }
-                }
-
-                // Bottom: status / last action
-                if (seat.lastAction.isNotEmpty()) {
-                    Text(
-                        text = seat.lastAction,
-                        color = statusColor,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                    )
-                } else if (seat.status != PlayerStatus.PLAYING) {
-                    Text(
-                        text = when (seat.status) {
-                            PlayerStatus.WAITING -> "Waiting"
-                            PlayerStatus.FOLDED -> "Folded"
-                            PlayerStatus.ALL_IN -> "All-In"
-                            PlayerStatus.ELIMINATED -> "Eliminated"
-                            else -> ""
-                        },
-                        color = statusColor,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                    )
                 }
             }
         }
