@@ -64,6 +64,7 @@ class SocketService(
         doConnect(token)
     }
 
+    @Suppress("UNUSED_PARAMETER") // token carried in auth; Socket.IO handshake handled by server
     private fun doConnect(token: String?) {
         try {
             wsClient?.close()
@@ -104,6 +105,7 @@ class SocketService(
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun handleEngineIOMessage(text: String, token: String?) {
         if (text.isEmpty()) return
         when (text[0]) {
