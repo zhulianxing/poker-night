@@ -68,6 +68,7 @@ fun TableScreen(
 
 /**
  * The poker table with 6 seats arranged (3 top, 3 bottom) and community cards in center.
+ * Mainstream poker broadcast style with dark table rail.
  */
 @Composable
 private fun PokerTableContent(state: TableState) {
@@ -76,47 +77,63 @@ private fun PokerTableContent(state: TableState) {
             .fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        // Table oval background
+        // ── Table outer rail (dark border) ──
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(120.dp))
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(TableGreen, TableGreenDark),
-                    )
-                ),
+                .fillMaxWidth(0.93f)
+                .fillMaxHeight(0.86f)
+                .clip(RoundedCornerShape(130.dp))
+                .background(RailDark)
+                .padding(8.dp),  // rail thickness
         ) {
-            // Table content
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween,
+            // ── Table inner felt ──
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(125.dp))
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(TableGreen, TableGreenDark),
+                        )
+                    ),
             ) {
-                // Top 3 seats
-                SeatRow(
-                    seats = state.seats,
-                    indices = listOf(3, 4, 5),
-                    modifier = Modifier.padding(top = 16.dp, start = 24.dp, end = 24.dp),
-                )
+                // ── Table content: seats + cards ──
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    // Top 3 seats
+                    SeatRow(
+                        seats = state.seats,
+                        indices = listOf(3, 4, 5),
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 14.dp, start = 20.dp, end = 20.dp),
+                    )
 
-                // Center: community cards + pot
-                CenterArea(state = state)
+                    // Community cards centered between top & bottom seat rows
+                    CenterArea(state = state, modifier = Modifier.align(Alignment.Center))
 
-                // Bottom 3 seats
-                SeatRow(
-                    seats = state.seats,
-                    indices = listOf(0, 1, 2),
-                    modifier = Modifier.padding(bottom = 16.dp, start = 24.dp, end = 24.dp),
-                )
+                    // Bottom 3 seats — show eliminated/empty placeholders
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .padding(bottom = 14.dp, start = 20.dp, end = 20.dp),
+                    ) {
+                        SeatRow(
+                            seats = state.seats,
+                            indices = listOf(0, 1, 2),
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * Row of 3 seats.
+ * Row of 3 seats — shows all 3 slots even when seat data is missing.
  */
 @Composable
 private fun SeatRow(
@@ -130,7 +147,7 @@ private fun SeatRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         indices.forEach { index ->
-            val seat = seats.getOrNull(index) ?: PlayerSeat(seatIndex = index)
+            val seat = seats.find { it.seatIndex == index } ?: PlayerSeat(seatIndex = index)
             PlayerSeatView(seat = seat)
         }
     }
@@ -142,13 +159,16 @@ private fun SeatRow(
  * Uses Box with absolute positioning (works around Android TV multi-child bug).
  */
 @Composable
-private fun CenterArea(state: TableState) {
+private fun CenterArea(
+    state: TableState,
+    modifier: Modifier = Modifier,
+) {
     val potText = formatPot(state.pot)
     val cards = state.communityCards
     val cardSpacing = 97.dp  // 76w + 21dp gap between cards
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
         // ── Stage badge (top of center area) ──

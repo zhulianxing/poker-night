@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -26,7 +25,7 @@ import com.pokernight.tvdisplay.data.model.PlayerStatus
 import com.pokernight.tvdisplay.ui.theme.*
 
 /**
- * Compact player seat box — smaller to leave room for big cards.
+ * Compact player seat box — shows all 6 positions around the table.
  */
 @Composable
 fun PlayerSeatView(
@@ -39,6 +38,7 @@ fun PlayerSeatView(
     val isAllIn = seat.status == PlayerStatus.ALL_IN
     val isActing = seat.isActing
 
+    // Blinking border when acting
     val infiniteTransition = rememberInfiniteTransition(label = "acting_blink")
     val borderAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -47,51 +47,95 @@ fun PlayerSeatView(
         label = "border_alpha",
     )
 
+    // If no data at all (seat doesn't exist in server data), show as placeholder
+    val isPlaceholder = seat.status == PlayerStatus.EMPTY && seat.playerId.isEmpty()
+
+    // Alpha: placeholder/eliminated ~50%, folded subtle, active 100%
     val seatAlpha = when {
-        isEliminated -> EliminatedAlpha
-        isFolded -> FoldedAlpha
-        isEmpty -> 0.15f
+        isPlaceholder -> 0.5f
+        isEliminated -> 0.5f
+        isFolded -> 0.4f
         else -> 1.0f
     }
 
+    // Border styling
     val borderColor = when {
         isActing -> RedAction.copy(alpha = borderAlpha)
         isAllIn -> GoldAccent
+        isEliminated || isPlaceholder -> SeatBorder.copy(alpha = 0.3f)
         else -> SeatBorder
     }
+    val borderWidth = when {
+        isActing || isAllIn -> 2.dp
+        else -> 1.dp
+    }
 
-    val statusColor = when {
-        isAllIn -> GoldAccent
-        isFolded -> TextTertiary
-        isEliminated -> TextTertiary
-        seat.status == PlayerStatus.WAITING -> GoldAccent.copy(alpha = 0.6f)
-        else -> TextSecondary
+    // Background
+    val bgColor = when {
+        isPlaceholder -> SeatBg.copy(alpha = 0.2f)
+        isEliminated -> SeatBg.copy(alpha = 0.3f)
+        else -> SeatBg
     }
 
     Box(
         modifier = modifier
             .width(140.dp)
-            .height(56.dp)
+            .height(52.dp)
             .alpha(seatAlpha)
             .clip(RoundedCornerShape(8.dp))
-            .background(SeatBg)
-            .border(
-                width = if (isActing || isAllIn) 2.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(8.dp),
-            )
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .background(bgColor)
+            .border(borderWidth, borderColor, RoundedCornerShape(8.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (isEmpty) {
-            Text("Empty", color = TextTertiary, fontSize = 11.sp)
-        } else {
+        // ── Placeholder seat (no data) ──
+        if (isPlaceholder) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("-", color = TextTertiary.copy(alpha = 0.4f), fontSize = 10.sp)
+            }
+        }
+        // ── Eliminated seat ──
+        else if (isEliminated) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Left: avatar + name + dealer
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = seat.avatar.ifEmpty { "\uD83C\uDCCF" },
+                        fontSize = 12.sp,
+                    )
+                    Text(
+                        text = seat.nickname.ifEmpty { "P${seat.seatIndex + 1}" },
+                        color = TextPrimary.copy(alpha = 0.6f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
+                }
+                Text(
+                    text = formatChipCount(seat.chipCount),
+                    color = ChipGreen.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        // ── Active seat (playing/folded/all-in) ──
+        else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Left: avatar + name + dealer button
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -129,19 +173,17 @@ fun PlayerSeatView(
                         fontWeight = FontWeight.Bold,
                     )
                     if (seat.lastAction.isNotEmpty()) {
-                        Text(seat.lastAction, color = statusColor, fontSize = 10.sp, maxLines = 1)
-                    } else if (!isEmpty && seat.status != PlayerStatus.PLAYING) {
-                        Text(
-                            text = when (seat.status) {
-                                PlayerStatus.FOLDED -> "Fold"
-                                PlayerStatus.ALL_IN -> "All-In"
-                                PlayerStatus.ELIMINATED -> "Elim"
-                                PlayerStatus.WAITING -> "Wait"
-                                else -> ""
-                            },
-                            color = statusColor,
-                            fontSize = 10.sp,
-                        )
+                        Text(seat.lastAction, color = TextSecondary, fontSize = 10.sp, maxLines = 1)
+                    } else {
+                        val statusText = when (seat.status) {
+                            PlayerStatus.FOLDED -> "Fold"
+                            PlayerStatus.ALL_IN -> "All-In"
+                            PlayerStatus.WAITING -> "Wait"
+                            else -> ""
+                        }
+                        if (statusText.isNotEmpty()) {
+                            Text(statusText, color = TextTertiary, fontSize = 10.sp)
+                        }
                     }
                 }
             }

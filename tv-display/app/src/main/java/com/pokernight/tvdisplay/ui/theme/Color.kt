@@ -21,6 +21,7 @@ val TextPrimary = Color(0xFFFFFFFF)       // #ffffff
 val TextSecondary = Color(0xB3FFFFFF)     // rgba(255,255,255,0.7)
 val TextTertiary = Color(0x80FFFFFF)      // rgba(255,255,255,0.5)
 val PotGold = Color(0xFFFFD700)
+val RailDark = Color(0xFF2A1810)  // dark brown table rail
 val CardBack = Color(0xFF1E3A5F)
 val CardBackAccent = Color(0xFF2A5080)
 val StageBg = Color(0x33FFD700)
