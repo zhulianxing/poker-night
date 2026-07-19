@@ -18,7 +18,7 @@ class SocketService(
 
     companion object {
         private const val TAG = "SocketService"
-        private const val WS_URL = "wss://43.164.130.145/poker/ws"
+        private const val WS_URL = "wss://pokernight.cc/socket.io"
 
         // Engine.IO v4 message types
         private const val EIO_OPEN = '0'

@@ -6,8 +6,8 @@ import retrofit2.Retrofit
 import com.google.gson.GsonBuilder
 import retrofit2.converter.gson.GsonConverterFactory
 
-const val BASE_URL = "http://43.164.130.145:3010"
-const val SOCKET_URL = "ws://43.164.130.145:3001"
+const val BASE_URL = "https://pokernight.cc"
+const val SOCKET_URL = "wss://pokernight.cc/socket.io"
 
 object NetworkProvider {
 

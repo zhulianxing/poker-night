@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>支付结果 - 扑克之夜</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+    background: #080808;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 50% 30%, rgba(13,79,44,0.4) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 80% 80%, rgba(212,168,83,0.08) 0%, transparent 60%);
+  }
+  .card {
+    position: relative; z-index: 1;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 20px;
+    padding: 40px;
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .icon {
+    font-size: 4rem;
+    display: block;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    color: #888;
+    font-size: 0.9rem;
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }
+  .info-box {
+    background: #1c1c1c;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+    text-align: left;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 0.88rem;
+  }
+  .info-row:not(:last-child) { border-bottom: 1px solid #222; }
+  .info-label { color: #666; }
+  .info-value { color: #fff; font-weight: 500; }
+  .info-value.gold { color: #d4a853; }
+  .success-box {
+    background: rgba(6, 183, 70, 0.1);
+    border: 1px solid rgba(6, 183, 70, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .success-box h2 {
+    color: #06bb46;
+    font-size: 1.15rem;
+    margin-bottom: 8px;
+  }
+  .success-box p {
+    color: #888;
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #d4a853, #b8892e);
+    color: #000;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #e8c87a, #d4a853);
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: transparent;
+    color: #888;
+    border: 1px solid #333;
+  }
+  .btn-secondary:hover { border-color: #555; color: #aaa; }
+  .rules {
+    margin-top: 20px;
+    padding: 14px;
+    background: rgba(212,168,83,0.06);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: #555;
+    line-height: 1.6;
+    text-align: left;
+  }
+  .rules strong { color: #d4a853; }
+  /* 轮询状态 */
+  .polling { display: none; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="card">
+  <div id="pendingView">
+    <span class="icon">⏳</span>
+    <h1>支付确认中…</h1>
+    <p class="subtitle">请在微信/支付宝中完成支付<br/>页面将自动更新</p>
+    <div class="success-box" style="background:rgba(212,168,83,0.08);border-color:rgba(212,168,83,0.2);">
+      <h2 style="color:#d4a853;">⏳ 等待支付回调</h2>
+      <p>支付成功后，系统会自动激活赛事并<br/>将您加入赛事名单，请稍候…</p>
+    </div>
+    <button class="btn btn-secondary" onclick="checkStatus()">刷新状态</button>
+  </div>
+
+  <div id="successView" style="display:none;">
+    <span class="icon">✅</span>
+    <h1>支付成功！</h1>
+    <p class="subtitle" id="successSub">赛事已激活，您可以下载选手端参赛</p>
+    <div class="success-box">
+      <h2>🎉 赛事已开启</h2>
+      <p>所有玩家现在可以扫码免费入座，<br/>满人即开赛或等待倒计时结束</p>
+    </div>
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">您的昵称</span>
+        <span class="info-value gold" id="resName">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">赛事码</span>
+        <span class="info-value" id="resCode">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">支付金额</span>
+        <span class="info-value gold" id="resAmount">—</span>
+      </div>
+    </div>
+    <a href="/" class="btn btn-primary">返回首页</a>
+  </div>
+
+  <div id="errorView" style="display:none;">
+    <span class="icon">❌</span>
+    <h1>支付状态异常</h1>
+    <p class="subtitle" id="errorMsg">请联系场馆工作人员</p>
+    <button class="btn btn-secondary" onclick="window.location.reload()">重新尝试</button>
+  </div>
+
+  <div class="rules">
+    💡 <strong>下一步：</strong>下载「扑克之夜」选手端 APP，用同一台手机扫描电视上的「选手入座」二维码，即可参与比赛。
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let orderId = '';
+let pollCount = 0;
+
+function getParams() {
+  const p = new URLSearchParams(window.location.search);
+  orderId = p.get('order') || '';
+}
+getParams();
+
+async function checkStatus() {
+  if (!orderId) {
+    showView('error');
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/payment/order/${orderId}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    if (data.status === 'paid') {
+      showSuccess(data);
+    } else {
+      pollCount++;
+      if (pollCount >= 12) { // 最多轮询60秒
+        showView('error');
+      } else {
+        setTimeout(checkStatus, 5000);
+      }
+    }
+  } catch (e) {
+    setTimeout(checkStatus, 5000);
+  }
+}
+
+function showSuccess(data) {
+  document.getElementById('resName').textContent = data.playerName || '—';
+  document.getElementById('resCode').textContent = data.displayCode || data.tableCode || '—';
+  const amount = data.amount || 0;
+  document.getElementById('resAmount').textContent = amount > 0 ? `¥${(amount/100).toFixed(0)}` : '—';
+  showView('success');
+}
+
+function showView(name) {
+  document.getElementById('pendingView').style.display = name === 'pending' ? 'block' : 'none';
+  document.getElementById('successView').style.display = name === 'success' ? 'block' : 'none';
+  document.getElementById('errorView').style.display = name === 'error' ? 'block' : 'none';
+}
+
+showView('pending');
+checkStatus();
+</script>
+</body>
+</html>

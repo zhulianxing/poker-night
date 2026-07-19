@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>支付赛事启动费 - 扑克之夜</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+    background: #080808;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 30%, rgba(13,79,44,0.4) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 80% 80%, rgba(212,168,83,0.08) 0%, transparent 60%);
+  }
+  .card {
+    position: relative; z-index: 1;
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 20px;
+    padding: 40px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .brand {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .brand-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .brand-name {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #d4a853;
+    letter-spacing: 0.05em;
+  }
+  .brand-sub {
+    font-size: 0.85rem;
+    color: #666;
+    margin-top: 4px;
+  }
+  h1 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 24px;
+    color: #fff;
+  }
+  .info-box {
+    background: #1c1c1c;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 0.9rem;
+  }
+  .info-row:not(:last-child) {
+    border-bottom: 1px solid #222;
+  }
+  .info-label { color: #888; }
+  .info-value { color: #fff; font-weight: 500; }
+  .info-value.gold { color: #d4a853; font-size: 1.1rem; font-weight: 700; }
+  .form-group {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 0.82rem;
+    color: #888;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  input[type="text"] {
+    width: 100%;
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 1rem;
+    color: #fff;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]:focus {
+    border-color: #d4a853;
+    box-shadow: 0 0 0 3px rgba(212,168,83,0.15);
+  }
+  input[type="text"]::placeholder { color: #555; }
+  .hint {
+    font-size: 0.78rem;
+    color: #555;
+    margin-top: 6px;
+  }
+  .btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-pay {
+    background: linear-gradient(135deg, #d4a853, #b8892e);
+    color: #000;
+  }
+  .btn-pay:hover:not(:disabled) {
+    background: linear-gradient(135deg, #e8c87a, #d4a853);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(212,168,83,0.35);
+  }
+  .btn-pay:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-wx { background: #07c160; color: #fff; }
+  .btn-wx:hover:not(:disabled) { background: #06ad56; }
+  .btn-alipay { background: #1677ff; color: #fff; }
+  .btn-alipay:hover:not(:disabled) { background: #0958d9; }
+  .divider {
+    text-align: center;
+    margin: 20px 0;
+    position: relative;
+  }
+  .divider::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 1px;
+    background: #2a2a2a;
+  }
+  .divider span {
+    position: relative;
+    background: #141414;
+    padding: 0 12px;
+    color: #555;
+    font-size: 0.8rem;
+  }
+  .error {
+    background: rgba(229,57,53,0.1);
+    border: 1px solid rgba(229,57,53,0.3);
+    border-radius: 8px;
+    padding: 12px;
+    color: #e53935;
+    font-size: 0.88rem;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .loading {
+    display: none;
+    text-align: center;
+    padding: 32px;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid #2a2a2a;
+    border-top-color: #d4a853;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: #888; font-size: 0.9rem; }
+  .rules {
+    margin-top: 20px;
+    padding: 14px;
+    background: rgba(212,168,83,0.06);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: #666;
+    line-height: 1.6;
+  }
+  .rules strong { color: #d4a853; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<!-- 支付表单 -->
+<div class="card" id="payCard">
+  <div class="brand">
+    <span class="brand-icon">♠</span>
+    <div class="brand-name">扑克之夜</div>
+    <div class="brand-sub">Poker Night SNG</div>
+  </div>
+
+  <h1>💰 支付赛事启动费</h1>
+
+  <div class="error" id="errorBox"></div>
+
+  <div class="info-box">
+    <div class="info-row">
+      <span class="info-label">赛事码</span>
+      <span class="info-value" id="tableCodeDisplay">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">赛事启动费</span>
+      <span class="info-value gold" id="amountDisplay">¥—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">参赛名额</span>
+      <span class="info-value">6人 SNG</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">初始筹码</span>
+      <span class="info-value">10,000</span>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>您的昵称（将显示在电视大屏）</label>
+    <input type="text" id="playerName" placeholder="例如：张三、李四、扑克王…" maxlength="20" autocomplete="off" />
+    <div class="hint">昵称将显示在赛事入座列表中</div>
+  </div>
+
+  <div class="divider"><span>选择支付方式</span></div>
+
+  <button class="btn btn-wx" id="btnWx" onclick="goPay('wechat')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.21 24 16.206 24 14.04c0-3.103-3.11-5.606-7.062-5.606zm-2.08 3.197c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z"/></svg>
+    微信支付
+  </button>
+
+  <div style="height: 10px"></div>
+
+  <button class="btn btn-alipay" id="btnAli" onclick="goPay('alipay')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.99 13.10c0-1.63-.96-3.03-2.35-3.75L18.3 5.6c-.22-.37-.72-.44-1.02-.17L9.56 15.97c-.28.25-.27.68.02.93l6.36 5.34c.31.26.82.16 1.01-.21l.76-1.44c1.04.35 2.18.29 3.18-.23l1.11.89c.38.31.93.21 1.12-.21l.87-1.94zM7.18 8.65L4.26 9.92c-.39.17-.45.71-.1.96L8.4 14.23c.21.15.49.13.67-.04l2.05-1.9c-.28-1.42-1.06-2.63-2.18-3.43l-1.76-.21z"/></svg>
+    支付宝
+  </button>
+
+  <div class="rules">
+    <strong>付费说明：</strong>此费用为赛事启动费（由发起人支付）。付费成功后赛事即刻激活，所有玩家可扫码免费入座。费用将自动分账：<strong>场馆 70% / 平台 30%</strong>。
+  </div>
+</div>
+
+<!-- 等待跳转 -->
+<div class="card" id="loadingCard" style="display:none;">
+  <div class="loading">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">正在连接支付通道…</div>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let tableCode = '';
+let tableId = '';
+let launchFee = 0;
+let playerName = '';
+
+function showError(msg) {
+  const el = document.getElementById('errorBox');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('errorBox').style.display = 'none';
+}
+
+function $(id) { return document.getElementById(id); }
+
+function showLoadingCard(text) {
+  $('payCard').style.display = 'none';
+  $('loadingCard').style.display = 'block';
+  $('loadingText').textContent = text;
+}
+
+async function goPay(method) {
+  hideError();
+  playerName = $('playerName').value.trim();
+  if (!playerName) {
+    showError('请输入您的昵称');
+    return;
+  }
+  if (playerName.length < 2) {
+    showError('昵称至少2个字符');
+    return;
+  }
+
+  $('btnWx').disabled = true;
+  $('btnAli').disabled = true;
+
+  try {
+    showLoadingCard('正在创建订单…');
+
+    const createRes = await fetch(`${API_BASE}/api/v1/payment/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tableId: tableId,
+        paymentMethod: method,
+        playerName: playerName
+      })
+    });
+
+    const data = await createRes.json();
+
+    if (!createRes.ok || data.error) {
+      throw new Error(data.error || '创建订单失败');
+    }
+
+    if (!data.payUrl) {
+      throw new Error('支付链接无效');
+    }
+
+    // 跳转虎皮椒
+    showLoadingCard('即将跳转支付页面…');
+    window.location.href = data.payUrl;
+
+  } catch (err) {
+    $('payCard').style.display = 'block';
+    $('loadingCard').style.display = 'none';
+    $('btnWx').disabled = false;
+    $('btnAli').disabled = false;
+    showError(err.message || '网络错误，请重试');
+  }
+}
+
+// 从 URL 解析参数并查询赛事信息
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  tableCode = params.get('table') || '';
+  const nameParam = params.get('name') || '';
+  if (nameParam) $('playerName').value = decodeURIComponent(nameParam);
+
+  if (!tableCode) {
+    showError('赛事码无效，请扫描电视上的二维码');
+    $('btnWx').disabled = true;
+    $('btnAli').disabled = true;
+    return;
+  }
+
+  $('tableCodeDisplay').textContent = tableCode;
+
+  // 查询赛事信息（金额等）
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/tables/${tableCode}/status`);
+    if (res.ok) {
+      const info = await res.json();
+      if (info.table) {
+        launchFee = info.table.launch_fee || 0;
+        $('amountDisplay').textContent = launchFee > 0
+          ? `¥${(launchFee / 100).toFixed(0)}`
+          : '¥—';
+      }
+    }
+  } catch (e) {
+    // 网络错误不影响主流程
+  }
+}
+
+init();
+</script>
+</body>
+</html>
