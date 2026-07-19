@@ -3,19 +3,34 @@ package com.pokernight.player.data.network
 import android.util.Log
 import com.pokernight.player.data.model.Card
 import com.pokernight.player.data.model.GameState
-import io.socket.client.Socket
+import com.pokernight.player.data.model.SeatInfo
+import org.java_websocket.client.WebSocketClient
+import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
+import kotlin.concurrent.thread
 
 class SocketService(
     private val onStateUpdate: (GameState) -> Unit,
     private val onEvent: (String, JSONObject) -> Unit,
 ) {
-    private var socket: Socket? = null
-    private var currentState = GameState()
 
     companion object {
         private const val TAG = "SocketService"
+        private const val WS_URL = "wss://43.164.130.145/poker/ws"
+
+        // Engine.IO v4 message types
+        private const val EIO_OPEN = '0'
+        private const val EIO_CLOSE = '1'
+        private const val EIO_PING = '2'
+        private const val EIO_MESSAGE = '4'
+
+        // Socket.IO v4 message types
+        private const val SIO_CONNECT = '0'
+        private const val SIO_DISCONNECT = '1'
+        private const val SIO_EVENT = '2'
+        private const val SIO_ERROR = '4'
 
         const val EVT_TOURNAMENT_ACTIVATED = "tournament_activated"
         const val EVT_COUNTDOWN_TICK = "countdown_tick"
@@ -33,32 +48,176 @@ class SocketService(
         const val EVT_BLIND_LEVEL_UP = "blind_level_up"
     }
 
+    private var wsClient: WebSocketClient? = null
+    private var connected = false
+    private var shouldReconnect = false
+    private var reconnectThread: Thread? = null
+    private var currentState = GameState()
+
     fun connect(token: String?) {
         Log.i(TAG, "connect() called, token=${if (token != null) token.take(20) + "..." else "null"}")
-        if (socket?.connected() == true) {
+        if (wsClient?.isOpen == true) {
             Log.i(TAG, "Socket already connected, skipping")
             return
         }
-        Log.i(TAG, "Creating socket...")
-        socket = NetworkProvider.createSocket(token)
-        registerListeners()
-        Log.i(TAG, "Connecting socket...")
-        socket?.connect()
+        shouldReconnect = true
+        doConnect(token)
+    }
+
+    private fun doConnect(token: String?) {
+        try {
+            wsClient?.close()
+            wsClient = null
+            connected = false
+
+            Log.i(TAG, "Connecting to WebSocket: $WS_URL")
+
+            wsClient = object : WebSocketClient(URI(WS_URL)) {
+                override fun onOpen(handshake: ServerHandshake?) {
+                    Log.i(TAG, "onOpen — waiting for Engine.IO open")
+                    // Engine.IO handshake will come as "0{...}"
+                    // Token will be sent in join_table after connected
+                }
+
+                override fun onMessage(msg: String?) {
+                    if (msg.isNullOrEmpty()) return
+                    Log.i(TAG, "RAW[${msg.take(200)}]")
+                    handleEngineIOMessage(msg, token)
+                }
+
+                override fun onClose(code: Int, reason: String?, remote: Boolean) {
+                    Log.i(TAG, "onClose: $code $reason remote=$remote")
+                    handleDisconnect()
+                }
+
+                override fun onError(ex: Exception?) {
+                    Log.e(TAG, "onError: ${ex?.message}", ex)
+                }
+            }
+
+            wsClient?.connectionLostTimeout = 0
+            wsClient?.connect()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Connection error", e)
+            handleDisconnect()
+        }
+    }
+
+    private fun handleEngineIOMessage(text: String, token: String?) {
+        if (text.isEmpty()) return
+        when (text[0]) {
+            EIO_OPEN -> {
+                try {
+                    val sid = JSONObject(text.substring(1)).optString("sid", "?")
+                    Log.i(TAG, "Engine.IO open sid=$sid")
+                    // Respond with Socket.IO connect packet (40)
+                    wsClient?.send("40")
+                    Log.i(TAG, "Sent 40")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Bad open: $text", e)
+                }
+            }
+            EIO_CLOSE -> {
+                Log.i(TAG, "Engine.IO close")
+                wsClient?.close()
+                handleDisconnect()
+            }
+            EIO_PING -> {
+                wsClient?.send("3")
+            }
+            EIO_MESSAGE -> handleSocketIOMessage(text)
+            else -> Log.w(TAG, "Unknown EIO: '${text[0]}'")
+        }
+    }
+
+    private fun handleSocketIOMessage(text: String) {
+        if (text.length < 2) return
+        when (text[1]) {
+            SIO_CONNECT -> {
+                Log.i(TAG, "SIO CONNECT (40)")
+                if (!connected) {
+                    connected = true
+                    // Re-join table after connection established
+                    if (currentState.tableCode.isNotEmpty()) {
+                        Log.i(TAG, "Re-emitting join_table for ${currentState.tableCode}")
+                        val data = JSONObject().apply { put("tableCode", currentState.tableCode) }
+                        sendEvent("join_table", data)
+                    }
+                }
+            }
+            SIO_EVENT -> {
+                try {
+                    val arr = JSONArray(text.substring(2))
+                    val name = arr.optString(0, "")
+                    if (name.isEmpty()) return
+                    val data = if (arr.length() > 1 && arr.opt(1) is JSONObject) {
+                        arr.getJSONObject(1)
+                    } else {
+                        JSONObject()
+                    }
+                    Log.d(TAG, "Event: $name")
+                    handleEvent(name, data)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Bad event: ${text.substring(2)}", e)
+                }
+            }
+            SIO_DISCONNECT -> {
+                Log.i(TAG, "SIO DISCONNECT")
+                handleDisconnect()
+            }
+            SIO_ERROR -> Log.e(TAG, "SIO ERROR: ${text.substring(2)}")
+            else -> Log.d(TAG, "SIO type '${text[1]}': ${text.substring(2)}")
+        }
+    }
+
+    private fun sendEvent(name: String, data: JSONObject) {
+        val arr = JSONArray().apply { put(name); put(data) }
+        wsClient?.send("42$arr")
+        Log.d(TAG, "Emitted: $name")
     }
 
     fun disconnect() {
-        socket?.disconnect()
-        socket?.off()
-        socket = null
+        Log.i(TAG, "Disconnecting")
+        shouldReconnect = false
+        reconnectThread?.interrupt()
+        reconnectThread = null
+        wsClient?.close()
+        wsClient = null
+        connected = false
         currentState = GameState()
     }
 
-    fun isConnected(): Boolean = socket?.connected() == true
+    fun isConnected(): Boolean = connected && wsClient?.isOpen == true
+
+    private fun handleDisconnect() {
+        val wasConnected = connected
+        connected = false
+        wsClient = null
+        if (wasConnected) {
+            onEvent("socket_disconnected", JSONObject())
+        }
+        if (shouldReconnect) scheduleReconnect()
+    }
+
+    private fun scheduleReconnect() {
+        reconnectThread?.interrupt()
+        reconnectThread = thread {
+            try {
+                val delay = 1000L + (Math.random() * 4000).toLong()
+                Log.i(TAG, "Reconnect in ${delay}ms")
+                Thread.sleep(delay)
+                if (shouldReconnect) doConnect(null)
+            } catch (_: InterruptedException) {}
+        }
+    }
 
     fun joinTable(tableCode: String) {
-        Log.i(TAG, "joinTable($tableCode) called, socket=${if (socket?.connected() == true) "connected" else "NOT connected"}")
+        Log.i(TAG, "joinTable($tableCode) called, connected=$connected")
         val data = JSONObject().apply { put("tableCode", tableCode) }
-        socket?.emit("join_table", data)
+        if (connected && wsClient?.isOpen == true) {
+            sendEvent("join_table", data)
+        }
         currentState = currentState.copy(tableCode = tableCode)
     }
 
@@ -68,15 +227,15 @@ class SocketService(
             put("action", action)
             put("amount", amount)
         }
-        socket?.emit("player_action", data)
+        sendEvent("player_action", data)
     }
 
-    private fun parseSeats(jsonArr: JSONArray?): List<com.pokernight.player.data.model.SeatInfo> {
+    private fun parseSeats(jsonArr: JSONArray?): List<SeatInfo> {
         if (jsonArr == null) return emptyList()
-        val seats = mutableListOf<com.pokernight.player.data.model.SeatInfo>()
+        val seats = mutableListOf<SeatInfo>()
         for (i in 0 until jsonArr.length()) {
             val s = jsonArr.getJSONObject(i)
-            seats.add(com.pokernight.player.data.model.SeatInfo(
+            seats.add(SeatInfo(
                 seatIndex = s.optInt("seatIndex", i),
                 playerId = s.optString("playerId", ""),
                 nickname = s.optString("nickname", s.optString("name", "")),
@@ -91,59 +250,31 @@ class SocketService(
         return seats
     }
 
-    private fun findMySeat(seats: List<com.pokernight.player.data.model.SeatInfo>): com.pokernight.player.data.model.SeatInfo? {
-        val myId = com.pokernight.player.data.network.AuthManager.getPlayerId()
+    private fun findMySeat(seats: List<SeatInfo>): SeatInfo? {
+        val myId = AuthManager.getPlayerId()
         return seats.find { it.playerId == myId }
     }
 
-    private fun registerListeners() {
-        val s = socket ?: return
-
-        s.on(Socket.EVENT_CONNECT) {
-            Log.i(TAG, "Socket connected")
-            // Re-emit join_table after connection is established
-            if (currentState.tableCode.isNotEmpty()) {
-                Log.i(TAG, "Re-emitting join_table for ${currentState.tableCode}")
-                val data = JSONObject().apply { put("tableCode", currentState.tableCode) }
-                s.emit("join_table", data)
+    private fun handleEvent(name: String, data: JSONObject) {
+        when (name) {
+            EVT_TOURNAMENT_ACTIVATED -> {
+                onEvent(name, data)
             }
-        }
-        s.on(Socket.EVENT_DISCONNECT) { Log.i(TAG, "Socket disconnected") }
-        s.on(Socket.EVENT_CONNECT_ERROR) { args ->
-            Log.e(TAG, "Connect error: ${args.joinToString()}")
-        }
 
-        s.on(EVT_TOURNAMENT_ACTIVATED) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                onEvent(EVT_TOURNAMENT_ACTIVATED, args[0] as JSONObject)
-            }
-        }
-
-        s.on(EVT_COUNTDOWN_TICK) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
+            EVT_COUNTDOWN_TICK -> {
                 val remaining = data.optInt("remaining", 0)
                 currentState = currentState.copy(countdown = remaining)
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on("table_state") { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
-                val phase = data.optString("phase", "")
-                val displayCode = data.optString("displayCode", "")
-                val sb = data.optInt("sb", 10)
-                val bb = data.optInt("bb", 20)
+            "table_state" -> {
                 val seats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(seats)
                 currentState = currentState.copy(
-                    phase = phase,
+                    phase = data.optString("phase", ""),
                     tournamentId = data.optString("tournamentId", ""),
-                    // Don't overwrite tableCode with displayCode - they are different!
-                    // tableCode is the table password (e.g. SNGT01), displayCode is tournament name (e.g. REAL66)
-                    sb = sb,
-                    bb = bb,
+                    sb = data.optInt("sb", 10),
+                    bb = data.optInt("bb", 20),
                     pot = data.optInt("pot", 0),
                     currentBet = data.optInt("currentBet", 0),
                     blindLevel = data.optInt("blindLevel", 1),
@@ -157,11 +288,8 @@ class SocketService(
                 )
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on("seat_joined") { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
+            "seat_joined" -> {
                 val seats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(seats)
                 if (seats.isNotEmpty()) {
@@ -173,41 +301,35 @@ class SocketService(
                     onStateUpdate(currentState)
                 }
             }
-        }
 
-        s.on(EVT_TOURNAMENT_STARTED) { args ->
-            val data = if (args.isNotEmpty() && args[0] is JSONObject) args[0] as JSONObject else JSONObject()
-            val tid = data.optString("tournamentId", "")
-            val seats = parseSeats(data.optJSONArray("seats"))
-            val mySeat = findMySeat(seats)
-            currentState = currentState.copy(
-                phase = "tournament_started",
-                tournamentId = tid,
-                seats = seats,
-                mySeatIndex = mySeat?.seatIndex ?: currentState.mySeatIndex,
-                myChips = mySeat?.chipCount ?: currentState.myChips,
-            )
-            onEvent(EVT_TOURNAMENT_STARTED, data)
-            onStateUpdate(currentState)
-        }
+            EVT_TOURNAMENT_STARTED -> {
+                val tid = data.optString("tournamentId", "")
+                val seats = parseSeats(data.optJSONArray("seats"))
+                val mySeat = findMySeat(seats)
+                currentState = currentState.copy(
+                    phase = "tournament_started",
+                    tournamentId = tid,
+                    seats = seats,
+                    mySeatIndex = mySeat?.seatIndex ?: currentState.mySeatIndex,
+                    myChips = mySeat?.chipCount ?: currentState.myChips,
+                )
+                onEvent(name, data)
+                onStateUpdate(currentState)
+            }
 
-        s.on(EVT_NEW_HAND) { args ->
-            val data = if (args.isNotEmpty() && args[0] is JSONObject) args[0] as JSONObject else JSONObject()
-            currentState = currentState.copy(
-                phase = "new_hand",
-                communityCards = emptyList(),
-                currentBet = 0,
-            )
-            onEvent(EVT_NEW_HAND, data)
-            onStateUpdate(currentState)
-        }
+            EVT_NEW_HAND -> {
+                currentState = currentState.copy(
+                    phase = "new_hand",
+                    communityCards = emptyList(),
+                    currentBet = 0,
+                )
+                onEvent(name, data)
+                onStateUpdate(currentState)
+            }
 
-        s.on(EVT_HOLE_CARDS) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
-                // Only update if these are MY cards
+            EVT_HOLE_CARDS -> {
                 val cardPlayerId = data.optString("playerId", "")
-                val myPlayerId = com.pokernight.player.data.network.AuthManager.getPlayerId()
+                val myPlayerId = AuthManager.getPlayerId()
                 if (cardPlayerId.isEmpty() || cardPlayerId == myPlayerId) {
                     val cardsArr = data.optJSONArray("cards") ?: JSONArray()
                     val cards = mutableListOf<Card>()
@@ -223,42 +345,27 @@ class SocketService(
                     onStateUpdate(currentState)
                 }
             }
-        }
 
-        s.on(EVT_HAND_STARTED) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
-                val handNumber = data.optInt("handNumber", 0)
-                val stage = data.optString("stage", "preflop")
-                val pot = data.optInt("pot", 0)
-                val currentBet = data.optInt("currentBet", 0)
-                val actingIndex = data.optInt("actingIndex", -1)
-                // Parse seats from server event
+            EVT_HAND_STARTED -> {
                 val seats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(seats)
                 currentState = currentState.copy(
                     phase = "hand_started",
-                    handNumber = handNumber,
-                    pot = pot,
-                    currentBet = currentBet,
-                    actingIndex = actingIndex,
+                    handNumber = data.optInt("handNumber", 0),
+                    pot = data.optInt("pot", 0),
+                    currentBet = data.optInt("currentBet", 0),
+                    actingIndex = data.optInt("actingIndex", -1),
                     seats = seats,
                     mySeatIndex = mySeat?.seatIndex ?: currentState.mySeatIndex,
                     myChips = mySeat?.chipCount ?: currentState.myChips,
                     myCurrentBet = mySeat?.currentBet ?: 0,
-                    isMyTurn = actingIndex == (mySeat?.seatIndex ?: currentState.mySeatIndex),
+                    isMyTurn = data.optInt("actingIndex", -1) == (mySeat?.seatIndex ?: currentState.mySeatIndex),
                 )
-                onEvent(EVT_HAND_STARTED, data)
+                onEvent(name, data)
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on(EVT_STAGE_CHANGED) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
-                val stage = data.optString("stage", "")
-                val pot = data.optInt("pot", 0)
-                val currentBet = data.optInt("currentBet", 0)
+            EVT_STAGE_CHANGED -> {
                 val cardsArr = data.optJSONArray("communityCards") ?: JSONArray()
                 val cards = mutableListOf<Card>()
                 for (i in 0 until cardsArr.length()) {
@@ -269,30 +376,25 @@ class SocketService(
                         value = c.optInt("value", 0),
                     ))
                 }
-                // Update seats from stage_changed event
                 val seats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(seats)
+                val stage = data.optString("stage", "")
                 currentState = currentState.copy(
                     phase = "stage_changed:$stage",
-                    pot = pot,
-                    currentBet = currentBet,
+                    pot = data.optInt("pot", 0),
+                    currentBet = data.optInt("currentBet", 0),
                     communityCards = cards,
                     seats = if (seats.isNotEmpty()) seats else currentState.seats,
                     myChips = mySeat?.chipCount ?: currentState.myChips,
                     myCurrentBet = mySeat?.currentBet ?: currentState.myCurrentBet,
                 )
-                onEvent(EVT_STAGE_CHANGED, data)
+                onEvent(name, data)
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on(EVT_TURN_CHANGED) { args ->
-            Log.i(TAG, "turn_changed event received!")
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
+            EVT_TURN_CHANGED -> {
+                Log.i(TAG, "turn_changed event received!")
                 val actingIndex = data.optInt("actingIndex", -1)
-                val pot = data.optInt("pot", 0)
-                val currentBet = data.optInt("currentBet", 0)
                 val serverSeats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(serverSeats)
                 Log.i(TAG, "turn_changed: actingIndex=$actingIndex, mySeatIndex=${mySeat?.seatIndex ?: currentState.mySeatIndex}, isMyTurn=${actingIndex == (mySeat?.seatIndex ?: currentState.mySeatIndex)}")
@@ -302,8 +404,8 @@ class SocketService(
                 }
                 currentState = currentState.copy(
                     actingIndex = actingIndex,
-                    pot = pot,
-                    currentBet = currentBet,
+                    pot = data.optInt("pot", currentState.pot),
+                    currentBet = data.optInt("currentBet", currentState.currentBet),
                     seats = seats,
                     myChips = mySeat?.chipCount ?: currentState.myChips,
                     myCurrentBet = mySeat?.currentBet ?: currentState.myCurrentBet,
@@ -311,51 +413,39 @@ class SocketService(
                 )
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on(EVT_ACTION_RESULT) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
+            EVT_ACTION_RESULT -> {
                 val playerId = data.optString("playerId", "")
-                val action = data.optString("action", "")
-                val amount = data.optInt("amount", 0)
-                val pot = data.optInt("pot", data.optInt("pot", 0))
-                val currentBet = data.optInt("currentBet", currentState.currentBet)
-                // Update seats from server snapshot
                 val serverSeats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(serverSeats)
                 val seats = if (serverSeats.isNotEmpty()) serverSeats.toMutableList() else currentState.seats.toMutableList()
                 for (i in seats.indices) {
                     if (seats[i].playerId == playerId) {
+                        val amount = data.optInt("amount", 0)
                         seats[i] = seats[i].copy(
-                            lastAction = "$action" + if (amount > 0) " $amount" else "",
+                            lastAction = "${data.optString("action", "")}${if (amount > 0) " $amount" else ""}",
                             isActing = false,
                         )
                     }
                 }
                 currentState = currentState.copy(
                     seats = seats,
-                    pot = if (pot > 0) pot else currentState.pot,
-                    currentBet = currentBet,
+                    pot = data.optInt("pot", currentState.pot),
+                    currentBet = data.optInt("currentBet", currentState.currentBet),
                     myChips = mySeat?.chipCount ?: currentState.myChips,
                     myCurrentBet = mySeat?.currentBet ?: currentState.myCurrentBet,
                 )
-                onEvent(EVT_ACTION_RESULT, data)
+                onEvent(name, data)
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on(EVT_SHOWDOWN) { args ->
-            val data = if (args.isNotEmpty() && args[0] is JSONObject) args[0] as JSONObject else JSONObject()
-            currentState = currentState.copy(phase = "showdown")
-            onEvent(EVT_SHOWDOWN, data)
-            onStateUpdate(currentState)
-        }
+            EVT_SHOWDOWN -> {
+                currentState = currentState.copy(phase = "showdown")
+                onEvent(name, data)
+                onStateUpdate(currentState)
+            }
 
-        s.on(EVT_HAND_RESULT) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
-                val pot = data.optInt("pot", 0)
+            EVT_HAND_RESULT -> {
                 val seats = parseSeats(data.optJSONArray("seats"))
                 val mySeat = findMySeat(seats)
                 currentState = currentState.copy(
@@ -366,14 +456,11 @@ class SocketService(
                     myChips = mySeat?.chipCount ?: currentState.myChips,
                     myCurrentBet = 0,
                 )
-                onEvent(EVT_HAND_RESULT, data)
+                onEvent(name, data)
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on(EVT_PLAYER_ELIMINATED) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
+            EVT_PLAYER_ELIMINATED -> {
                 val playerId = data.optString("playerId", "")
                 val seats = currentState.seats.toMutableList()
                 for (i in seats.indices) {
@@ -382,31 +469,29 @@ class SocketService(
                     }
                 }
                 currentState = currentState.copy(seats = seats)
-                onEvent(EVT_PLAYER_ELIMINATED, data)
+                onEvent(name, data)
                 onStateUpdate(currentState)
             }
-        }
 
-        s.on(EVT_TOURNAMENT_FINISHED) { args ->
-            val data = if (args.isNotEmpty() && args[0] is JSONObject) args[0] as JSONObject else JSONObject()
-            currentState = currentState.copy(phase = "tournament_finished")
-            onEvent(EVT_TOURNAMENT_FINISHED, data)
-            onStateUpdate(currentState)
-        }
-
-        s.on(EVT_BLIND_LEVEL_UP) { args ->
-            if (args.isNotEmpty() && args[0] is JSONObject) {
-                val data = args[0] as JSONObject
-                val level = data.optInt("level", 1)
-                val sb = data.optInt("sb", 10)
-                val bb = data.optInt("bb", 20)
-                currentState = currentState.copy(
-                    blindLevel = level,
-                    sb = sb,
-                    bb = bb,
-                )
-                onEvent(EVT_BLIND_LEVEL_UP, data)
+            EVT_TOURNAMENT_FINISHED -> {
+                currentState = currentState.copy(phase = "tournament_finished")
+                onEvent(name, data)
                 onStateUpdate(currentState)
+            }
+
+            EVT_BLIND_LEVEL_UP -> {
+                currentState = currentState.copy(
+                    blindLevel = data.optInt("level", 1),
+                    sb = data.optInt("sb", 10),
+                    bb = data.optInt("bb", 20),
+                )
+                onEvent(name, data)
+                onStateUpdate(currentState)
+            }
+
+            else -> {
+                Log.d(TAG, "Unhandled event: $name")
+                onEvent(name, data)
             }
         }
     }

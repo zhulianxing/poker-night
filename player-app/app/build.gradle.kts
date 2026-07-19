@@ -73,7 +73,7 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
-    implementation(libs.socket.io.client)
+    implementation("org.java-websocket:Java-WebSocket:1.6.0")
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.android)
 

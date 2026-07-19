@@ -65,10 +65,11 @@ class SNGManager {
       }
       this.blindLevel++;
       console.log(`[SNG] Blind level up to ${this.blindLevel}`);
+      const capBlindLevel = Math.min(this.blindLevel, 10);
       this.emit('blind_level_up', {
         level: this.blindLevel,
-        sb: SNG_DEFAULTS.START_BLIND_SB * Math.pow(2, this.blindLevel - 1),
-        bb: SNG_DEFAULTS.START_BLIND_BB * Math.pow(2, this.blindLevel - 1),
+        sb: SNG_DEFAULTS.START_BLIND_SB * Math.pow(2, capBlindLevel - 1),
+        bb: SNG_DEFAULTS.START_BLIND_BB * Math.pow(2, capBlindLevel - 1),
       });
     }, interval * 1000);
   }
@@ -78,7 +79,8 @@ class SNGManager {
    */
   getCurrentBlinds() {
     const base = this.tournament.start_blind || SNG_DEFAULTS.START_BLIND_SB;
-    const sb = base * Math.pow(2, this.blindLevel - 1);
+    const maxLevel = Math.min(this.blindLevel, 10);  // 封顶 Level 10
+    const sb = base * Math.pow(2, maxLevel - 1);
     const bb = sb * 2;
     return { sb, bb };
   }
