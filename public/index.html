@@ -1,166 +1,533 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poker Night - 下载</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>扑克之夜 SNG 锦标赛</title>
+  <meta name="description" content="扑克之夜 — 酒吧、聚会，一起玩德州！全新 SNG 单桌锦标赛，支持多人同屏竞技，即扫即玩。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    /* ─── Reset & Variables ─────────────────────────────── */
+    :root {
+      --gold: #d4a853;
+      --gold-light: #e8c87a;
+      --gold-dark: #b8892e;
+      --green: #0d4f2c;
+      --green-light: #1a7a45;
+      --red: #e53935;
+      --bg: #080808;
+      --bg2: #0f0f0f;
+      --card: #141414;
+      --card2: #1c1c1c;
+      --border: #2a2a2a;
+      --text: #ffffff;
+      --text2: #b0b0b0;
+      --text3: #666;
+      --font: 'Noto Sans SC', 'PingFang SC', sans-serif;
+      --serif: 'Playfair Display', serif;
     }
-    
-    body {
-      background: linear-gradient(135deg, #1a0a00 0%, #2a1508 100%);
-      color: #d4a853;
-      font-family: 'Georgia', 'Times New Roman', serif;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); overflow-x: hidden; line-height: 1.6; }
+
+    /* ─── Suit icons ──────────────────────────────────── */
+    .suits { font-size: 1em; letter-spacing: 0.15em; opacity: 0.4; }
+    .suits-red { color: #e53935; opacity: 0.6; }
+
+    /* ─── Nav ──────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 68px;
+      background: rgba(8,8,8,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(212,168,83,0.15);
     }
-    
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 40px 20px;
-      text-align: center;
+    .nav-brand {
+      display: flex; align-items: center; gap: 12px;
+      font-family: var(--serif); font-size: 1.3rem; font-weight: 900;
+      color: var(--gold);
+      text-decoration: none;
     }
-    
-    h1 {
-      font-size: 48px;
+    .nav-brand svg { width: 36px; height: 36px; }
+    .nav-links { display: flex; gap: 32px; align-items: center; }
+    .nav-links a {
+      color: var(--text2); text-decoration: none; font-size: 0.92rem;
+      transition: color 0.2s; font-weight: 500;
+    }
+    .nav-links a:hover { color: var(--gold); }
+    .nav-cta {
+      background: var(--gold); color: #000; border: none;
+      padding: 9px 22px; border-radius: 6px;
+      font-weight: 700; font-size: 0.9rem; cursor: pointer;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .nav-cta:hover { background: var(--gold-light); transform: translateY(-1px); }
+
+    /* ─── Hero ─────────────────────────────────────────── */
+    .hero {
+      position: relative; min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; overflow: hidden;
+      padding: 100px 24px 80px;
+    }
+    /* Animated radial gradient background */
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 40%, rgba(13,79,44,0.45) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 20% 80%, rgba(212,168,83,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 20%, rgba(212,168,83,0.06) 0%, transparent 60%);
+      animation: heroPulse 8s ease-in-out infinite alternate;
+    }
+    @keyframes heroPulse {
+      from { opacity: 0.8; transform: scale(1); }
+      to { opacity: 1; transform: scale(1.03); }
+    }
+    /* Subtle grid overlay */
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(212,168,83,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(212,168,83,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 900px; }
+    /* Animated suits row */
+    .hero-suits {
+      font-size: 2rem; letter-spacing: 0.5em; margin-bottom: 24px;
+      animation: fadeDown 0.8s ease both;
+    }
+    .hero-suits .s { color: #e53935; }
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .hero h1 {
+      font-family: var(--serif); font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 900; line-height: 1.05;
+      color: #fff;
+      animation: fadeUp 0.8s 0.2s ease both;
       margin-bottom: 8px;
-      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-      letter-spacing: 4px;
     }
-    
-    .subtitle {
-      color: #8b7355;
-      font-size: 16px;
-      margin-bottom: 40px;
-      letter-spacing: 2px;
+    .hero h1 span { color: var(--gold); }
+    .hero-slogan {
+      font-size: clamp(1rem, 2.5vw, 1.35rem);
+      color: var(--text2); font-weight: 300;
+      margin: 20px 0 48px;
+      animation: fadeUp 0.8s 0.35s ease both;
     }
-    
-    .card {
-      background: rgba(42, 21, 8, 0.8);
-      border: 1px solid #5a3a1a;
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    .hero-btns {
+      display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+      animation: fadeUp 0.8s 0.5s ease both;
     }
-    
-    .card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(212, 168, 83, 0.2);
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--gold); color: #000;
+      padding: 16px 36px; border-radius: 8px;
+      font-size: 1.05rem; font-weight: 700; text-decoration: none;
+      transition: all 0.25s; border: 2px solid var(--gold);
     }
-    
-    .card h2 {
-      font-size: 24px;
-      margin: 0 0 8px 0;
-      color: #d4a853;
+    .btn-primary:hover { background: var(--gold-light); border-color: var(--gold-light); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(212,168,83,0.35); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--text);
+      padding: 16px 36px; border-radius: 8px;
+      font-size: 1.05rem; font-weight: 600; text-decoration: none;
+      border: 2px solid var(--border);
+      transition: all 0.25s;
     }
-    
-    .card p {
-      color: #a08060;
-      font-size: 14px;
-      margin: 0 0 16px 0;
-      line-height: 1.6;
+    .btn-secondary:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-2px); }
+    /* Scroll indicator */
+    .scroll-hint {
+      position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      color: var(--text3); font-size: 0.8rem; letter-spacing: 0.1em;
+      animation: bounce 2s infinite;
     }
-    
-    .btn {
-      display: inline-block;
-      background: linear-gradient(135deg, #d4a853 0%, #c49a47 100%);
-      color: #1a0a00;
-      padding: 12px 32px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-weight: bold;
-      font-size: 16px;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(212, 168, 83, 0.3);
+    @keyframes bounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(6px); }
     }
-    
-    .btn:hover {
-      background: linear-gradient(135deg, #e4b863 0%, #d4aa57 100%);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(212, 168, 83, 0.4);
+    .scroll-hint svg { width: 20px; height: 20px; opacity: 0.5; }
+
+    /* ─── Section base ─────────────────────────────────── */
+    section { padding: 100px 24px; max-width: 1200px; margin: 0 auto; }
+    .section-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 0.15em;
+      color: var(--gold); text-transform: uppercase; margin-bottom: 16px;
     }
-    
-    .btn:active {
-      transform: translateY(0);
+    .section-label::before, .section-label::after {
+      content: ''; display: block; width: 24px; height: 1px;
+      background: var(--gold); opacity: 0.5;
     }
-    
-    .web-link {
-      color: #d4a853;
-      text-decoration: none;
-      font-size: 16px;
-      padding: 8px 16px;
-      display: inline-block;
-      border: 1px solid #5a3a1a;
-      border-radius: 6px;
-      transition: all 0.3s ease;
+    h2 {
+      font-family: var(--serif); font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 900; line-height: 1.15; margin-bottom: 16px;
     }
-    
-    .web-link:hover {
-      background: rgba(212, 168, 83, 0.1);
-      border-color: #d4a853;
+    h2 .gold { color: var(--gold); }
+    .section-sub {
+      font-size: 1.1rem; color: var(--text2); max-width: 600px;
+      margin-bottom: 64px; font-weight: 300;
     }
-    
-    .footer {
-      color: #5a3a1a;
-      font-size: 12px;
-      margin-top: 40px;
-      letter-spacing: 1px;
+    /* Divider */
+    .divider { width: 60px; height: 3px; background: linear-gradient(90deg, var(--gold), transparent); margin: 24px 0; }
+
+    /* ─── How it works ─────────────────────────────────── */
+    #how { background: var(--bg2); border-radius: 24px; margin: 40px auto; max-width: 1160px; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 32px; }
+    .step {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px 28px;
+      position: relative; transition: all 0.3s;
     }
-    
-    .emoji {
-      font-size: 28px;
-      margin-right: 8px;
+    .step:hover { border-color: rgba(212,168,83,0.4); transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.4); }
+    .step-num {
+      font-family: var(--serif); font-size: 4rem; font-weight: 900;
+      color: rgba(212,168,83,0.12); position: absolute; top: 12px; right: 20px; line-height: 1;
     }
-    
-    .qr-hint {
-      font-size: 12px;
-      color: #6a4a2a;
-      margin-top: 12px;
+    .step-icon { font-size: 2.5rem; margin-bottom: 20px; }
+    .step h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px; }
+    .step p { color: var(--text2); font-size: 0.92rem; line-height: 1.65; }
+
+    /* ─── Features ─────────────────────────────────────── */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+    .feature {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px 28px;
+      transition: border-color 0.3s;
+    }
+    .feature:hover { border-color: rgba(212,168,83,0.3); }
+    .feature-icon { font-size: 2.2rem; margin-bottom: 16px; }
+    .feature h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; }
+    .feature p { color: var(--text2); font-size: 0.9rem; }
+
+    /* ─── Venue section ─────────────────────────────────── */
+    #venue { background: linear-gradient(180deg, var(--bg) 0%, rgba(13,79,44,0.12) 50%, var(--bg) 100%); }
+    .venue-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+    @media (max-width: 768px) { .venue-grid { grid-template-columns: 1fr; } }
+    .venue-img {
+      background: radial-gradient(ellipse, rgba(13,79,44,0.5), rgba(8,8,8,0.9));
+      border: 1px solid rgba(212,168,83,0.2);
+      border-radius: 20px; aspect-ratio: 4/3;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .venue-img::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(45deg, rgba(212,168,83,0.03) 0, rgba(212,168,83,0.03) 1px, transparent 1px, transparent 12px);
+    }
+    .venue-img-inner {
+      font-size: 6rem; opacity: 0.3; position: relative; z-index: 1;
+    }
+    .venue-list { list-style: none; display: flex; flex-direction: column; gap: 20px; }
+    .venue-list li {
+      display: flex; align-items: flex-start; gap: 14px;
+      font-size: 1rem; color: var(--text2); line-height: 1.5;
+    }
+    .venue-list li::before { content: '✔'; color: var(--gold); font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+
+    /* ─── Download ──────────────────────────────────────── */
+    #download { background: var(--bg2); border-radius: 24px; margin: 40px auto; max-width: 1160px; }
+    .download-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 800px; margin: 0 auto; }
+    @media (max-width: 640px) { .download-cards { grid-template-columns: 1fr; } }
+    .dl-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 40px 32px; text-align: center;
+      transition: all 0.3s; position: relative; overflow: hidden;
+    }
+    .dl-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--green), var(--gold));
+    }
+    .dl-card:hover { border-color: rgba(212,168,83,0.4); transform: translateY(-4px); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+    .dl-icon { font-size: 4rem; margin-bottom: 20px; }
+    .dl-card h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+    .dl-card p { color: var(--text2); font-size: 0.88rem; margin-bottom: 24px; }
+    .dl-badge {
+      display: inline-block; background: rgba(212,168,83,0.15);
+      color: var(--gold); font-size: 0.75rem; font-weight: 700;
+      padding: 4px 12px; border-radius: 100px; margin-bottom: 20px;
+      border: 1px solid rgba(212,168,83,0.3);
+    }
+    .dl-btn {
+      display: block; width: 100%;
+      background: var(--gold); color: #000;
+      padding: 14px; border-radius: 10px;
+      font-weight: 700; text-decoration: none; font-size: 0.98rem;
+      transition: all 0.2s;
+    }
+    .dl-btn:hover { background: var(--gold-light); box-shadow: 0 6px 20px rgba(212,168,83,0.3); }
+
+    /* ─── Pricing ──────────────────────────────────────── */
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto; }
+    .price-card {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 36px 28px; text-align: center;
+      transition: all 0.3s; position: relative;
+    }
+    .price-card.popular {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 1px var(--gold), 0 20px 60px rgba(212,168,83,0.15);
+    }
+    .price-card.popular::before {
+      content: '最受欢迎';
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--gold); color: #000;
+      font-size: 0.75rem; font-weight: 700; padding: 4px 16px; border-radius: 100px;
+    }
+    .price-amount { font-family: var(--serif); font-size: 3rem; font-weight: 900; color: var(--gold); }
+    .price-amount small { font-size: 1rem; color: var(--text3); font-family: var(--font); }
+    .price-name { font-size: 1.1rem; font-weight: 700; margin: 8px 0 4px; }
+    .price-desc { color: var(--text2); font-size: 0.85rem; margin-bottom: 24px; }
+    .price-features { list-style: none; text-align: left; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .price-features li { display: flex; gap: 10px; font-size: 0.9rem; color: var(--text2); }
+    .price-features li::before { content: '✓'; color: var(--green-light); font-weight: 700; flex-shrink: 0; }
+    .price-btn {
+      display: block; width: 100%;
+      padding: 13px; border-radius: 10px; font-weight: 700;
+      text-decoration: none; font-size: 0.95rem; transition: all 0.2s;
+    }
+    .price-btn-outline { border: 2px solid var(--border); color: var(--text); }
+    .price-btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .price-btn-gold { background: var(--gold); color: #000; }
+    .price-btn-gold:hover { background: var(--gold-light); }
+
+    /* ─── Footer ─────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 24px; text-align: center;
+    }
+    .footer-brand { font-family: var(--serif); font-size: 1.4rem; color: var(--gold); margin-bottom: 12px; }
+    .footer-suit { font-size: 1.2rem; letter-spacing: 0.4em; opacity: 0.4; margin-bottom: 16px; }
+    .footer-links { display: flex; justify-content: center; gap: 28px; margin-bottom: 24px; flex-wrap: wrap; }
+    .footer-links a { color: var(--text3); text-decoration: none; font-size: 0.88rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--gold); }
+    .footer-copy { color: var(--text3); font-size: 0.8rem; }
+
+    /* ─── Animations on scroll ─────────────────────────── */
+    .reveal { opacity: 0; transform: translateY(30px); transition: all 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* ─── Mobile nav ──────────────────────────────────── */
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      section { padding: 60px 20px; }
+      #how, #download { margin: 20px 16px; border-radius: 16px; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>♠ Poker Night ♠</h1>
-    <p class="subtitle">酒吧德州扑克 · 电视大屏 + 选手端</p>
-    
-    <div class="card">
-      <h2><span class="emoji">📺</span>TV Display</h2>
-      <p>Android TV 大屏端 — 显示公共牌、座位、底池、淘汰动画</p>
-      <a class="btn" href="apk/poker-night-tv.apk">下载 TV Display</a>
-      <p class="qr-hint">适合安装在电视盒子上，配合选手端使用</p>
+
+  <!-- Nav -->
+  <nav>
+    <a href="#" class="nav-brand">
+      <svg viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="8" fill="#d4a853"/>
+        <text x="6" y="27" font-size="22" font-weight="900" fill="#000">♠</text>
+        <text x="18" y="20" font-size="11" font-weight="700" fill="#0d4f2c">♥</text>
+        <text x="18" y="32" font-size="11" font-weight="700" fill="#e53935">♦</text>
+        <text x="27" y="20" font-size="14" font-weight="700" fill="#000">♣</text>
+      </svg>
+      扑克之夜
+    </a>
+    <div class="nav-links">
+      <a href="#how">玩法</a>
+      <a href="#venue">场馆</a>
+      <a href="#download">下载</a>
+      <a href="#pricing">价格</a>
+      <a href="/merchant/" class="nav-cta">商户后台</a>
     </div>
-    
-    <div class="card">
-      <h2><span class="emoji">📱</span>Player App</h2>
-      <p>选手端手机 APP — 扫码入座、下注跟注、社交互动</p>
-      <a class="btn" href="apk/poker-night-player.apk">下载 Player App</a>
-      <p class="qr-hint">酒吧顾客扫码下载，参与牌局</p>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-suits">
+        <span class="s">♥</span>&nbsp;<span>♠</span>&nbsp;<span class="s">♦</span>&nbsp;<span>♣</span>
+      </div>
+      <h1>扑克之夜<br><span>SNG 锦标赛</span></h1>
+      <p class="hero-slogan">酒吧 · 聚会 · 一起玩德州！</p>
+      <div class="hero-btns">
+        <a href="#download" class="btn-primary">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v14l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+          下载 APP
+        </a>
+        <a href="#venue" class="btn-secondary">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          场馆入驻
+        </a>
+      </div>
     </div>
-    
-    <div class="card">
-      <h2><span class="emoji">🌐</span>Web Player</h2>
-      <p>无需安装 APP，浏览器直接参赛</p>
-      <a class="web-link" href="http://43.164.130.145:3010/poker/play">启动浏览器版 →</a>
-      <p class="qr-hint">支持 Chrome / Safari / Edge 等现代浏览器</p>
+    <div class="scroll-hint">
+      <span>向下滚动</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>
     </div>
-    
-    <div class="card" style="background: rgba(30, 15, 5, 0.6);">
-      <h2><span class="emoji">🏪</span>商户入口</h2>
-      <p>酒吧管理员登录入口 — 创建比赛、查看流水、管理会员</p>
-      <a class="web-link" href="http://43.164.130.145:3003/dashboard">商户管理后台 →</a>
+  </section>
+
+  <!-- How it works -->
+  <section id="how" class="reveal">
+    <div class="section-label">如何参与</div>
+    <h2>三步开启你的 <span class="gold">锦标赛之旅</span></h2>
+    <div class="divider"></div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-icon">📱</div>
+        <h3>下载选手端 APP</h3>
+        <p>扫描场馆电视上的二维码，下载 Poker Night 选手端，支持 Android TV 与手机，随时随地加入比赛。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-icon">💰</div>
+        <h3>扫码支付参赛费</h3>
+        <p>在 APP 内扫描赛事二维码，通过微信/支付宝完成支付，即可锁定座位，立即参赛。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-icon">🏆</div>
+        <h3>同台竞技争排名</h3>
+        <p>6人 SNG 单桌赛，盲注递增，AI Bot 填补空位，实时排行榜，冠军独享奖池。一起嗨起来！</p>
+      </div>
     </div>
-    
-    <p class="footer">Poker Night v1.0 · 首尔服务器 · 2026</p>
-  </div>
+  </section>
+
+  <!-- Venue benefits -->
+  <section id="venue" class="reveal">
+    <div class="section-label">场馆入驻</div>
+    <h2>为您的酒吧 · <span class="gold">增添互动乐趣</span></h2>
+    <p class="section-sub">无需额外硬件，一台电视 + 我们的 TV Display 系统，即可开启全新生意模式。</p>
+    <div class="venue-grid">
+      <div class="venue-img">
+        <div class="venue-img-inner">🍺</div>
+      </div>
+      <div>
+        <ul class="venue-list">
+          <li><strong>零成本接入</strong> — 提供 TV Display APK，Android TV 一键安装，无需采购额外设备</li>
+          <li><strong>实时赛事直播</strong> — 大屏展示选手入座、盲注倒计时、公共牌局，顾客一眼看穿全场</li>
+          <li><strong>自动分账结算</strong> — 参赛费即时到账，70% 归场馆，平台仅收 30% 服务费</li>
+          <li><strong>AI Bot 陪玩</strong> — 人数不足时自动补位，确保每局比赛都能开赛，永不流局</li>
+          <li><strong>吸睛引流神器</strong> — 锦标赛天然聚集人气，顾客边喝边看边参与，翻台率 up！</li>
+          <li><strong>多设备管理</strong> — 一个后台管理所有赛桌，订单、收益、结算一目了然</li>
+        </ul>
+        <br/>
+        <a href="/merchant/" class="btn-primary" style="display:inline-flex;margin-top:8px;">
+          申请入驻 →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download -->
+  <section id="download" class="reveal">
+    <div class="section-label">立即下载</div>
+    <h2>免费 <span class="gold">双端 APP</span></h2>
+    <p class="section-sub" style="margin-bottom:48px;">TV 端显示赛事，选手端扫码参赛，完美配合。</p>
+    <div class="download-cards">
+      <div class="dl-card">
+        <div class="dl-badge">TV 大屏</div>
+        <div class="dl-icon">📺</div>
+        <h3>TV Display</h3>
+        <p>安装于 Android TV，<br/>展示赛事信息、选手实时排名</p>
+        <a href="/poker-tv-display.apk" class="dl-btn" download="poker-tv-display.apk">
+          ⬇ 下载 TV Display
+        </a>
+      </div>
+      <div class="dl-card">
+        <div class="dl-badge">选手端</div>
+        <div class="dl-icon">🎮</div>
+        <h3>Player App</h3>
+        <p>安装于手机，<br/>扫码入座、查看手牌、进行游戏</p>
+        <a href="/poker-player-app.apk" class="dl-btn" download="poker-player-app.apk">
+          ⬇ 下载 Player App
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="reveal">
+    <div class="section-label">灵活定价</div>
+    <h2>选择适合你的 <span class="gold">参赛规格</span></h2>
+    <p class="section-sub">场馆可自定义参赛费，系统自动分账，绝无跑冒滴漏。</p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-amount">¥50<small>/人</small></div>
+        <div class="price-name">入门赛</div>
+        <div class="price-desc">适合小型聚会、生日派对</div>
+        <ul class="price-features">
+          <li>起始筹码 10,000</li>
+          <li>初始盲注 10/20</li>
+          <li>6人 SNG</li>
+          <li>每局 30 秒操作时间</li>
+        </ul>
+        <a href="#download" class="price-btn price-btn-outline">立即体验</a>
+      </div>
+      <div class="price-card popular">
+        <div class="price-amount">¥100<small>/人</small></div>
+        <div class="price-name">标准赛</div>
+        <div class="price-desc">酒吧/餐厅首选套餐</div>
+        <ul class="price-features">
+          <li>起始筹码 10,000</li>
+          <li>初始盲注 10/20</li>
+          <li>6人 SNG</li>
+          <li>每局 30 秒操作时间</li>
+          <li>慢速盲注升级（60s）</li>
+        </ul>
+        <a href="#download" class="price-btn price-btn-gold">下载 APP</a>
+      </div>
+      <div class="price-card">
+        <div class="price-amount">¥200<small>/人</small></div>
+        <div class="price-name">豪客赛</div>
+        <div class="price-desc">适合俱乐部、高端场所</div>
+        <ul class="price-features">
+          <li>起始筹码 20,000</li>
+          <li>初始盲注 20/40</li>
+          <li>6人 SNG</li>
+          <li>每局 30 秒操作时间</li>
+          <li>快速盲注升级（45s）</li>
+        </ul>
+        <a href="#download" class="price-btn price-btn-outline">联系合作</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-brand">♠ 扑克之夜 ♣</div>
+    <div class="footer-suit suits">♥ ♦ ♠ ♣ ♥ ♦ ♠ ♣</div>
+    <div class="footer-links">
+      <a href="#how">玩法介绍</a>
+      <a href="#venue">场馆入驻</a>
+      <a href="#download">APP 下载</a>
+      <a href="/merchant/">商户后台</a>
+      <a href="/pay/">支付接口</a>
+    </div>
+    <p class="footer-copy">© 2026 Poker Night SNG. 酒吧、聚会，一起玩德州！</p>
+  </footer>
+
+  <!-- Scroll reveal -->
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  </script>
+
 </body>
 </html>
